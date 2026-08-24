@@ -740,29 +740,34 @@ def generate_bindings(dstfile: str, go_prelude: str, headers: list[str]) -> None
         ctx.add(make_simple_type("cl_double", "float64"))
         ctx.add(make_simple_type("void", "void"))
 
+        def docs_url(typ: str) -> str:
+            return f"https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/{typ}.html"
+
         o.write(go_prelude)
         for header in headers:
-            o.write(f"// BEGIN {dstfile} //\n")
+            o.write(f"// BEGIN {dstfile} //\n\n")
             hdr = ""
             with open(header) as f:
                 hdr = f.read()
 
-            o.write("// Typedefs\n")
+            o.write("// Typedefs\n\n")
             typedefs = [m["name"] for m in
                 re.finditer(r"^typedef [^\n{}]+ (?P<name>cl_[a-z0-9_]+);", hdr, re.MULTILINE)]
             for name in typedefs:
                 if name in ctx.typs:
                     continue
                 ctx.add(make_simple_type(name))
+                o.write(f"// See {docs_url(name)}\n")
                 o.write(f"type {ctx.typs[name].go_str()} {ctx.typs[name].cgo_str()}\n")
             o.write("\n")
 
-            o.write("// Structs\n")
+            o.write("// Structs\n\n")
             structs = [Struct(ctx, m["name"], m["body"]) for m in
                 re.finditer(r"^typedef struct[^{\n]*\{(?P<body>(\n[ #][^\n]+)+\n)\} *(?P<name>cl_\w+);", hdr, re.MULTILINE)]
             for struct in structs:
                 name = struct.name
                 ctx.add(make_simple_type(name))
+                o.write(f"// See {docs_url(name)}\n")
                 o.write(f"type {ctx.typs[name].go_str()} {ctx.typs[name].cgo_str()}\n")
                 for field in struct.fields:
                     fname = snake_to_camel(field.name)
@@ -775,7 +780,7 @@ def generate_bindings(dstfile: str, go_prelude: str, headers: list[str]) -> None
             o.write("\n")
 
             if os.path.basename(header) == "cl.h":
-                o.write("// Enums\n")
+                o.write("// Enums\n\n")
                 enums = []
                 enums.append(Enum(
                         "int",
@@ -791,6 +796,7 @@ def generate_bindings(dstfile: str, go_prelude: str, headers: list[str]) -> None
                         gotyp = snake_to_camel(ctyp.removeprefix("cl_"))
                     enums.append(Enum(ctyp, m["body"], gotyp))
                 for enum in enums:
+                    o.write(f"// See {docs_url("enums")}\n")
                     o.write(f"const ( // {enum.gotyp}\n")
                     for value in enum.values:
                         o.write(f"\t{value[0]} {enum.gotyp} = {value[1]}\n")
@@ -813,7 +819,7 @@ def generate_bindings(dstfile: str, go_prelude: str, headers: list[str]) -> None
                     o.write(f"}}\n")
                 o.write("\n")
 
-                o.write("// Functions\n")
+                o.write("// Functions\n\n")
                 funcs = [Function(ctx, m["name"], m["type"], m["params"], m["api_version"]) for m in
                     re.finditer(r"^extern CL_API_ENTRY (CL_API_PREFIX__\w+ )?(?P<type>[\w \*]+) CL_API_CALL\n(?P<name>cl\w+)\((?P<params>(.+,\n)*.+)\) CL_API_SUFFIX__(?P<api_version>\w+);", hdr, re.MULTILINE)]
                 for func in funcs:
@@ -841,6 +847,7 @@ def generate_bindings(dstfile: str, go_prelude: str, headers: list[str]) -> None
                     o.write(step_st.cb_code)
 
                     goname = func.name.removeprefix("cl")
+                    o.write(f"// See {docs_url(func.name)}\n")
                     o.write(f"func {goname}")
                     if step_st.generic != "":
                         o.write(f"[{step_st.generic}]")

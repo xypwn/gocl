@@ -6,6 +6,8 @@ package cl
 #cgo CFLAGS: -DCL_NO_NON_ICD_DISPATCH_EXTENSION_PROTOTYPES
 #cgo CFLAGS: -DCL_ENABLE_LAYERS
 #cgo CFLAGS: -Wno-deprecated-declarations
+#cgo CFLAGS: -Iinc/
+#cgo windows LDFLAGS: -lcfgmgr32 -lruntimeobject -lOle32
 #include "inc/CL/cl.h"
 #include "cl.go.h"
 */

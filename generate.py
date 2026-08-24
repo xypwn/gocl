@@ -34,6 +34,8 @@ package cl
 #cgo CFLAGS: -DCL_NO_NON_ICD_DISPATCH_EXTENSION_PROTOTYPES
 #cgo CFLAGS: -DCL_ENABLE_LAYERS
 #cgo CFLAGS: -Wno-deprecated-declarations
+#cgo CFLAGS: -Iinc/
+#cgo windows LDFLAGS: -lcfgmgr32 -lruntimeobject -lOle32
 #include "inc/CL/cl.h"
 #include "cl.go.h"
 */
@@ -232,8 +234,8 @@ def snake_to_camel(s: str) -> str:
 @dataclass
 class Struct:
     name: str
-    fields: list[Var]
-    def __init__(self, ctx: Context, name: str, body: str):
+    fields: list['Var']
+    def __init__(self, ctx: 'Context', name: str, body: str):
         self.name = name
 
         # Find fields
@@ -358,7 +360,7 @@ class Var:
 
 @dataclass
 class Context:
-    typs: dict[string, Type]
+    typs: dict[str, Type]
 
     def __init__(self):
         self.typs = {}

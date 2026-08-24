@@ -1,0 +1,2 @@
+#define HAVE_SECURE_GETENV
+#define HAVE___SECURE_GETENV

@@ -1,0 +1,10 @@
+extern void go_cl_callback_clCreateContext(char*, void*, size_t, void*);
+extern void go_cl_callback_clCreateContextFromType(char*, void*, size_t, void*);
+extern void go_cl_callback_clSetContextDestructorCallback(cl_context, void*);
+extern void go_cl_callback_clSetMemObjectDestructorCallback(cl_mem, void*);
+extern void go_cl_callback_clBuildProgram(cl_program, void*);
+extern void go_cl_callback_clCompileProgram(cl_program, void*);
+extern void go_cl_callback_clLinkProgram(cl_program, void*);
+extern void go_cl_callback_clSetProgramReleaseCallback(cl_program, void*);
+extern void go_cl_callback_clSetEventCallback(cl_event, cl_int, void*);
+extern void go_cl_callback_clEnqueueSVMFree(cl_command_queue, cl_uint, void**, void*);

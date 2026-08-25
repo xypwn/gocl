@@ -15,23 +15,19 @@ func main() {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
-	var numPlatforms uint32
-	var platformsArr [32]cl.PlatformId
-	if err := cl.GetPlatformIDs(uint32(len(platformsArr)), &platformsArr[0], &numPlatforms); err != nil {
+	platforms, err := cl.GetPlatformIDs()
+	if err != nil {
 		log.Fatal(err)
 	}
-	platforms := platformsArr[:numPlatforms]
 	if len(platforms) == 0 {
 		log.Fatal("no platforms")
 	}
 	platform := platforms[0]
 
-	var numDevices uint32
-	var devicesArr [32]cl.DeviceId
-	if err := cl.GetDeviceIDs(platform, cl.DEVICE_TYPE_GPU, uint32(len(devicesArr)), &devicesArr[0], &numDevices); err != nil {
+	devices, err := cl.GetDeviceIDs(platform, cl.DEVICE_TYPE_GPU)
+	if err != nil {
 		log.Fatal(err)
 	}
-	devices := devicesArr[:numDevices]
 	if len(devices) == 0 {
 		log.Fatal("no devices")
 	}

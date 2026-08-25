@@ -1,3 +1,5 @@
+from typing import Literal
+import enum
 import io
 import os
 import pathlib
@@ -58,14 +60,32 @@ func boolToClBool(b bool) C.cl_bool {
     }
 }
 func cstringToString(cstr *C.char) string {
-	s := (*[1<<30]C.char)(unsafe.Pointer(cstr))
+    s := (*[1<<30]C.char)(unsafe.Pointer(cstr))
     i := 0
     for ; s[i] != 0; i++ {}
     str := make([]byte, i)
-	for j := 0; j < i; j++ {
-		str[j] = byte(s[j])
-	}
+    for j := 0; j < i; j++ {
+        str[j] = byte(s[j])
+    }
     return string(str)
+}
+func sliceToC[E any, S ~[]E](s S) (data unsafe.Pointer, length C.size_t, fin func()) {
+    if len(s) == 0 {
+        return nil, 0, func() {}
+    }
+    var pin runtime.Pinner
+    pin.Pin(&s[0])
+    return unsafe.Pointer(&s[0]), C.size_t(len(s)), pin.Unpin
+}
+func sliceToCZeroTerm[E any, S ~[]E](s S) (data unsafe.Pointer, fin func()) {
+    if len(s) == 0 {
+        return nil, func() {}
+    }
+    var zero E
+    s = append(slices.Clone(s), zero)
+    var pin runtime.Pinner
+    pin.Pin(&s[0])
+    return unsafe.Pointer(&s[0]), pin.Unpin
 }
 func stringToC(s string) (_ *C.char, fin func()) {
     var pin runtime.Pinner
@@ -99,7 +119,7 @@ func stringsToC(ss []string) (data **C.char, lengths *C.size_t, fin func()) {
     fin = pin.Unpin
     return
 }
-func byteArraysToC(bs [][]byte) (data **C.uchar, lengths *C.size_t, fin func()) {
+func byteSlicesToC(bs [][]byte) (data **C.uchar, lengths *C.size_t, fin func()) {
     if len(bs) == 0 {
         return nil, nil, func() {}
     }
@@ -180,9 +200,9 @@ def extract_c_source_from_zip_url(
         url: str,
         include_re: str,
         exclude_re: str|None = None,
-        preludes: list[tuple[str, str]] = None,
+        preludes: list[tuple[str, str]]|None = None,
         extra_files: list[tuple[str, str]]|None = None,
-        replacements: list[tuple[str, str]]|None = None,
+        replacements: list[tuple[str, str, str]]|None = None,
     ) -> None:
     pathlib.Path(dstdir).mkdir(parents=True, exist_ok=True)
     with zipfile_from_url(url) as ar:
@@ -253,7 +273,7 @@ class Type:
     cbasetyp: str
     gobasetyp: str
 
-    goslice: bool = False
+    goslicelvl: int = 0
     ptrlvl: int = 0
     func_params: list['Var']|None = None
     func_results: list['Var']|None = None
@@ -261,10 +281,12 @@ class Type:
     def go_str(self) -> str:
         if self.cbasetyp == "void" and self.ptrlvl >= 1:
             return "unsafe.Pointer"
-        s = "*"*self.ptrlvl
-        if self.goslice:
-            s += "[]"
+        s = ""
+        s += "[]"*self.goslicelvl
+        s += "*"*self.ptrlvl
         if self.gobasetyp == "func":
+            assert self.func_params is not None
+            assert self.func_results is not None
             s += "func("
             for i, p in enumerate(self.func_params):
                 if i != 0:
@@ -283,9 +305,9 @@ class Type:
         return s
 
     def cgo_str(self) -> str:
-        s = "*"*self.ptrlvl
-        if self.goslice:
-            s += "[]"
+        s = ""
+        s += "[]"*self.goslicelvl
+        s += "*"*self.ptrlvl
         if self.gobasetyp == "func":
             s += "*[0]byte"
         else:
@@ -416,10 +438,11 @@ class Function:
                 else:
                     raise Exception(f"expected plain or callback parameter, got {m}")
             return res
-        rtyp = rettyp.replace(" ", "").replace("*", "")
+        rbtyp = rettyp.replace(" ", "").replace("*", "")
+        rptrlvl = rettyp.count("*")
         results = []
-        if rtyp != "void":
-            results.append(Var("_", Type(rtyp, ctx.typs[rtyp].gobasetyp, ptrlvl=rettyp.count("*"))))
+        if not(rbtyp == "void" and rptrlvl == 0):
+            results.append(Var("_", Type(rbtyp, ctx.typs[rbtyp].gobasetyp, ptrlvl=rptrlvl)))
         self.typ = Type("func", "func",
             func_params=parse_params(params), func_results=results)
 
@@ -429,34 +452,91 @@ class FunctionStepState:
     c_code: str
     cb_code: str
     generic: str # e.g. "E comparable, S ~[]E"
+    # List of Go function input parametersd
     in_params: list[Var]
+    # List of Go function return parameters
     out_params: list[Var]
+    # List of current values in function body
     values: list[Var]
+    # List of values to be returned from function
+    out_values: list[Var]
     takennames: dict[str,int]
+    # Custom data that can be retained between step invocations
+    custom_data: dict[str, object]
 
-    def __init__(self, in_params: list[Var], out_params: list[Var]):
+    def __init__(self, in_params: list[Var]):
         assert isinstance(in_params, list)
-        assert isinstance(out_params, list)
         for p in in_params: assert isinstance(p, Var)
-        for p in out_params: assert isinstance(p, Var)
         self.code = ""
         self.c_code = ""
         self.cb_code = ""
         self.generic = ""
         self.in_params = in_params.copy()
-        self.out_params = out_params.copy()
+        self.out_params = []
         self.values = in_params.copy()
+        self.out_values = []
         self.takennames = {v.name: 0 for v in self.values}
+        self.custom_data = {}
 
-    def mkvar(self, pfx: str = "v") -> str:
-        if self.takennames is None:
-            self.takennames = {}
-        s = pfx
+    # Returns the list of in_params variables corresponding to
+    # the given names.
+    def get_in_params(self, names: list[str]) -> list[Var]:
+        p_names = [p.name for p in self.in_params]
+        p_idxs = [p_names.index(n) for n in names]
+        return [self.in_params[i] for i in p_idxs]
+
+    def get_values(self, names: list[str]) -> list[Var]:
+        p_names = [p.name for p in self.values]
+        p_idxs = [p_names.index(n) for n in names]
+        return [self.values[i] for i in p_idxs]
+
+    # Finds the variables referenced by remove in self.in_params
+    # and self.values (must exist).
+    #
+    # Replaces the self.in_params with fewer new_in_params and
+    # replaces all removed self.values with new values.
+    #
+    # Reassigns names for new values via mkvar. Returns new_in_params
+    # and the list of values with actual unique names.
+    def replace_in_params(self, remove: list[str], new_in_params: list[Var]) -> tuple[list[Var], list[Var]]:
+        p_names = [p.name for p in self.in_params]
+        v_names = [p.name for p in self.values]
+        p_r_idxs = [p_names.index(n) for n in remove]
+        v_r_idxs = [v_names.index(n) for n in remove]
+        if len(new_in_params) > len(remove):
+            raise Exception("len(new_in_params) must be no more than len(remove)")
+        for i in range(len(new_in_params)):
+            self.in_params[p_r_idxs[i]] = new_in_params[i]
+        p_r_idxs = p_r_idxs[len(new_in_params):]
+        p_r_idxs.sort(reverse=True)
+        for i in p_r_idxs: self.in_params.pop(i)
+        new_values = [Var(name=self.mkvar(self.values[i].name), typ=self.values[i].typ) for i in v_r_idxs]
+        for i in range(len(v_r_idxs)): self.values[v_r_idxs[i]] = new_values[i]
+        return (new_in_params, new_values)
+
+    def replace_values(self, names: list[str], new_values: list[Var]) -> None:
+        if len(names) != len(new_values):
+            raise Exception("len(names) must be equal to len(new_values)")
+        v_names = [v.name for v in self.values]
+        v_idxs = [v_names.index(n) for n in names]
+        for i in range(len(v_idxs)):
+            self.values[v_idxs[i]] = new_values[i]
+
+    def remove_in_params(self, names: list[str]) -> list[Var]:
+        p_names = [v.name for v in self.in_params]
+        p_idxs = [p_names.index(n) for n in names]
+        ps = [self.in_params[i] for i in p_idxs]
+        p_idxs.sort(reverse=True)
+        for i in p_idxs: self.in_params.pop(i)
+        return ps
+
+    RE_VAR_PREFIX=re.compile(r"^(.*?)(_[0-9]+)?$")
+    def mkvar(self, name: str = "v") -> str:
+        s = re.sub(self.RE_VAR_PREFIX, r"\1", name)
         if s in self.takennames:
             self.takennames[s] += 1
             s += f"_{self.takennames[s]}"
-        else:
-            self.takennames[s] = 0
+        self.takennames[s] = 0
         return s
 
 # Single segment of binding code.
@@ -464,15 +544,19 @@ class FunctionStep:
     def __call__(self, s: FunctionStepState, ctx: Context, func: Function):
         pass
 
+@dataclass
 class FunctionStepConvToC(FunctionStep):
+    values_field: Literal["values", "out_values"]
     def __call__(self, s: FunctionStepState, ctx: Context, func: Function):
         new_values = []
-        for i, param in enumerate(s.values):
+        for i, param in enumerate(getattr(s, self.values_field)):
             if param.typ.gobasetyp == "":
                 # Already CGo-only type
                 new_values.append(param)
                 continue
             if param.typ.cbasetyp == "func":
+                assert param.typ.func_params is not None
+                assert param.typ.func_results is not None
                 cb_name = f"go_cl_callback_{func.name}"
                 s.c_code += f"extern void {cb_name}("
                 for j, p in enumerate(param.typ.func_params):
@@ -488,8 +572,8 @@ class FunctionStepConvToC(FunctionStep):
                     s.cb_code += p.cgo_str()
                 s.cb_code += ") {\n"
                 param.typ.func_params = [x for x in param.typ.func_params if x.name != "user_data"]
-                step_st = FunctionStepState(param.typ.func_params, param.typ.func_results)
-                steps = [FunctionStepConvToGo()]
+                step_st = FunctionStepState(param.typ.func_params)
+                steps = [FunctionStepConvToGo("values")]
                 for step in steps:
                     step(step_st, ctx, func)
                 s.cb_code += textwrap.indent(step_st.code, "\t")
@@ -519,20 +603,22 @@ class FunctionStepConvToC(FunctionStep):
                 name = s.mkvar(param.name)
                 s.code += f"{name} := {param.typ.conv_from_go(param.name)}\n"
                 new_values.append(Var(name, param.typ))
-        s.values = new_values
+        setattr(s, self.values_field, new_values)
 
+@dataclass
 class FunctionStepConvToGo(FunctionStep):
+    values_field: Literal["values", "out_values"]
     def __call__(self, s: FunctionStepState, ctx: Context, func: Function):
         new_values = []
-        for i, param in enumerate(s.values):
-            if param.typ.gobasetyp == "":
+        for i, param in enumerate(getattr(s, self.values_field)):
+            if param.typ.cbasetyp == "":
                 # Already Go-only type
                 new_values.append(param)
                 continue
             name = s.mkvar(param.name)
             s.code += f"{name} := {param.typ.conv_to_go(param.name)}\n"
             new_values.append(Var(name, param.typ))
-        s.values = new_values
+        setattr(s, self.values_field, new_values)
 
 #class FunctionStepGeneric(FunctionStep):
 #    def __call__(self, s: FunctionStepState, ctx: Context, func: Function):
@@ -543,181 +629,239 @@ class FunctionStepConvToGo(FunctionStep):
 
 @dataclass
 class SliceHint:
-    data_ptr_name: str
-    data_len_name: str|None = None # Assuming zero-terminated if None
-    actual_len_name: str|None = None # Slice is returned if not None
-    data_count_name: str|None = None
-    kind: str = "array" # array|bytes|string|bytearr|stringarr
+    data_ptr: str
+    data_len: str|None = None # Assuming zero-terminated if None
+    actual_len: str|None = None # Slice is returned if not None
+    data_count: str|None = None
+    kind: Literal["array", "bytes", "string", "bytesarr", "stringarr"] = "array"
 
 SLICE_HINTS = {
-    "clGetPlatformIDs": [SliceHint("platforms", "num_entries", "num_platforms")],
-    "clGetDeviceIDs": [SliceHint("devices", "num_entries", "num_devices")],
-    "clCreateSubDevice": [SliceHint("out_devices", "num_devices", "num_devices_ret"), SliceHint("properties")],
-    "clCreateContext": [SliceHint("devices", "num_devices"), SliceHint("properties")],
-    "clCreateContextFromType": [SliceHint("properties")],
-    "clGetSupportedImageFormats": [SliceHint("image_formats", "num_entries", "num_image_formats")],
-    "clCreateProgramWithSource": [SliceHint("strings", "lengths", data_count_name="count", kind="stringarr")],
-    "clCreateProgramWithBinary": [SliceHint("device_list", "num_devices")],
-    "clCreateProgramWithBuiltInKernels": [SliceHint("device_list", "num_devices")],
-    "clBuildProgram": [SliceHint("device_list", "num_devices")],
-    "clCompileProgram": [SliceHint("device_list", "num_devices")],
-    "clLinkProgram": [SliceHint("device_list", "num_devices")],
-    "clCreateKernel": [SliceHint("kernel_name", kind="string")],
-    "clCreateKernelsInProgram": [SliceHint("kernels", "num_kernels", "num_kernels_ret")],
-    "clWaitForEvents": [SliceHint("event_list", "num_events")],
-    "clEnqueueReadBuffer": [SliceHint("event_wait_list", "num_events_in_wait_list")],
-    "clEnqueueReadBufferRect": [SliceHint("event_wait_list", "num_events_in_wait_list")],
-    "clEnqueueWriteBuffer": [SliceHint("event_wait_list", "num_events_in_wait_list")],
-    "clEnqueueWriteBufferRect": [SliceHint("event_wait_list", "num_events_in_wait_list")],
-    "clEnqueueFillBuffer": [SliceHint("event_wait_list", "num_events_in_wait_list")],
-    "clEnqueueCopyBuffer": [SliceHint("event_wait_list", "num_events_in_wait_list")],
-    "clEnqueueCopyBufferRect": [SliceHint("event_wait_list", "num_events_in_wait_list")],
-    "clEnqueueReadImage": [SliceHint("event_wait_list", "num_events_in_wait_list")],
-    "clEnqueueWriteImage": [SliceHint("event_wait_list", "num_events_in_wait_list")],
-    "clEnqueueFillImage": [SliceHint("event_wait_list", "num_events_in_wait_list")],
-    "clEnqueueCopyImage": [SliceHint("event_wait_list", "num_events_in_wait_list")],
-    "clEnqueueCopyImageToBuffer": [SliceHint("event_wait_list", "num_events_in_wait_list")],
-    "clEnqueueMapToBuffer": [SliceHint("event_wait_list", "num_events_in_wait_list")],
-    "clEnqueueMapImage": [SliceHint("event_wait_list", "num_events_in_wait_list")],
-    "clEnqueueUnmapMemObject": [SliceHint("event_wait_list", "num_events_in_wait_list")],
-    "clEnqueueMigrateMemObjects": [SliceHint("event_wait_list", "num_events_in_wait_list")],
-    "clEnqueueNDRangeKernel": [SliceHint("event_wait_list", "num_events_in_wait_list")],
-    "clEnqueueNativeKernel": [SliceHint("event_wait_list", "num_events_in_wait_list")],
-    "clEnqueueMarkerWithWaitList": [SliceHint("event_wait_list", "num_events_in_wait_list")],
-    "clEnqueueBarrierWithWaitList": [SliceHint("event_wait_list", "num_events_in_wait_list")],
-    "clEnqueueSVMFree": [SliceHint("event_wait_list", "num_events_in_wait_list")],
-    "clEnqueueSVMMemcpy": [SliceHint("event_wait_list", "num_events_in_wait_list")],
-    "clEnqueueSVMMemFill": [SliceHint("event_wait_list", "num_events_in_wait_list")],
-    "clEnqueueSVMMap": [SliceHint("event_wait_list", "num_events_in_wait_list")],
-    "clEnqueueSVMUnmap": [SliceHint("event_wait_list", "num_events_in_wait_list")],
-    "clEnqueueSVMMigrateMem": [SliceHint("event_wait_list", "num_events_in_wait_list")],
-    "clEnqueueTask": [SliceHint("event_wait_list", "num_events_in_wait_list")],
+    r"clGetPlatformIDs": [SliceHint("platforms", "num_entries", "num_platforms")],
+    r"clGetDeviceIDs": [SliceHint("devices", "num_entries", "num_devices")],
+    r"clCreateSubDevice": [SliceHint("out_devices", "num_devices", "num_devices_ret"), SliceHint("properties")],
+    r"clCreateContext": [SliceHint("devices", "num_devices"), SliceHint("properties")],
+    r"clCreateContextFromType": [SliceHint("properties")],
+    r"clGetSupportedImageFormats": [SliceHint("image_formats", "num_entries", "num_image_formats")],
+    r"clCreateProgramWithSource": [SliceHint("strings", "lengths", data_count="count", kind="stringarr")],
+    r"clCreateProgramWithBinary": [SliceHint("device_list", "num_devices"), SliceHint("binaries", "lengths", kind="bytesarr")],
+    r"clCreateProgramWithBuiltInKernels": [SliceHint("device_list", "num_devices"), SliceHint("kernel_names", kind="string")],
+    r"clBuildProgram": [SliceHint("device_list", "num_devices")],
+    r"clCompileProgram": [SliceHint("device_list", "num_devices"), SliceHint("options", kind="string")],
+    r"clLinkProgram": [SliceHint("device_list", "num_devices"), SliceHint("input_programs", "num_input_programs"), SliceHint("options", kind="string")],
+    r"clCreateKernel": [SliceHint("kernel_name", kind="string")],
+    r"clCreateKernelsInProgram": [SliceHint("kernels", "num_kernels", "num_kernels_ret")],
+    r"clWaitForEvents": [SliceHint("event_list", "num_events")],
+    r"clEnqueue(?!(WaitForEvents|Marker|Barrier)$)\w+": [SliceHint("event_wait_list", "num_events_in_wait_list")],
+    r"clEnqueueWaitForEvents": [SliceHint("event_list", "num_events")],
+    r"clGetExtensionFunctionAddressForPlatform": [SliceHint("func_name", kind="string")],
+    r"clGetExtensionFunctionAddress": [SliceHint("func_name", kind="string")],
 }
 
+@dataclass
 class FunctionStepSlice(FunctionStep):
+    kind: Literal["pre_conv", "post_conv"]
     def __call__(self, s: FunctionStepState, ctx: Context, func: Function):
-        if not func.name in SLICE_HINTS:
-            return
-        for hint in SLICE_HINTS[func.name]:
-            val_names = [p.name for p in s.values]
-            if hint.data_len_name is not None:
-                if hint.data_len_name not in val_names:
-                    raise Exception(f"cannot find {hint.data_len_name} in {func.name}")
-                data_len_idx = val_names.index(hint.data_len_name)
-            if hint.data_ptr_name not in val_names:
-                raise Exception(f"cannot find {hint.data_ptr_name} in {func.name}")
-            data_ptr_idx = val_names.index(hint.data_ptr_name)
-            if hint.kind == "array" and hint.actual_len_name is None:
-                slc_name = s.values[data_ptr_idx].name
-                data_ptr_typ = s.values[data_ptr_idx].typ
-                if hint.data_len_name is not None:
-                    data_len_name = s.values[data_len_idx].name
-                    data_len_typ = s.values[data_len_idx].typ
-                    len_name = s.mkvar("dlen")
-                    s.code += f"{len_name} := {data_len_typ.conv_from_go(f"len({slc_name})")}\n"
+        hints = [h for [pat, hs] in SLICE_HINTS.items() for h in hs if re.fullmatch(pat, func.name)]
+        for hint in hints:
+            if hint.kind == "array":
+                # Slice is output parameter
+                if hint.actual_len is not None:
+                    assert hint.data_len is not None
+                    if self.kind == "pre_conv":
+                        [vdata, vlen, vactlen] = s.get_values([hint.data_ptr, hint.data_len, hint.actual_len])
+                        s.custom_data["array_res_slicetyp"] = Type("", vdata.typ.gobasetyp, goslicelvl=1)
+                        # Prevent conversion of values
+                        s.replace_values([hint.data_ptr, hint.data_len, hint.actual_len], [
+                                Var(vdata.name, Type(vdata.typ.cbasetyp, "", ptrlvl=1)),
+                                Var(vlen.name, Type(vlen.typ.cbasetyp, "")),
+                                Var(vactlen.name, Type(vactlen.typ.cbasetyp, "", ptrlvl=1)),
+                            ])
+                    else:
+                        tslc = s.custom_data["array_res_slicetyp"]
+                        assert isinstance(tslc, Type)
+                        [vdata, vlen, vactlen] = s.get_values([hint.data_ptr, hint.data_len, hint.actual_len])
+
+                        # Call function with null params to find out actual len first
+                        nactlen = s.mkvar(f"{hint.data_ptr}_actual_len")
+                        s.code += f"var {nactlen} {Type(vactlen.typ.cbasetyp, "").cgo_str()}\n"
+                        s.code += f"C.{func.name}("
+                        for i, v in enumerate(s.values):
+                            if i != 0:
+                                s.code += ", "
+                            if v.name == hint.data_ptr:
+                                s.code += "nil"
+                            elif v.name == hint.data_len:
+                                s.code += f"0"
+                            elif v.name == hint.actual_len:
+                                s.code += f"&{nactlen}"
+                            else:
+                                s.code += v.name
+                        s.code += ")\n"
+
+                        s.remove_in_params([hint.data_ptr, hint.data_len, hint.actual_len])
+
+                        vslc = Var(s.mkvar(vdata.name), tslc)
+                        s.code += f"{vslc.name} := make({vslc.typ.go_str()}, {nactlen})\n"
+                        nfin = s.mkvar(f"{vdata.name}_fin")
+                        s.code += f"{vdata.name}, {vlen.name}, {nfin} := sliceToC({vslc.name})\n"
+                        s.code += f"defer {nfin}()\n"
+
+                        # Convert manually
+                        vdata.name = f"(*C.{vdata.typ.cbasetyp})({vdata.name})"
+                        vlen.name = f"C.{vlen.typ.cbasetyp}({vlen.name})"
+
+                        # No need to query actual length anymore
+                        vactlen.name = "nil"
+
+                        s.out_values.append(vslc)
+                        s.out_params.append(Var(f"_{hint.data_ptr}", vslc.typ))
+                elif hint.data_len is None:
+                    # Slice is zero sentinel terminated input parameter
+                    if self.kind != "pre_conv": continue
+
+                    [vdata] = s.get_in_params([hint.data_ptr])
+                    ([vslc], [vdata]) = s.replace_in_params(
+                        [hint.data_ptr],
+                        [Var(vdata.name, Type("", vdata.typ.gobasetyp, goslicelvl=1))])
+                    nfin = s.mkvar(f"{vdata.name}_fin")
+                    s.code += f"{vdata.name}, {nfin} := sliceToCZeroTerm({vslc.name})\n"
+                    s.code += f"defer {nfin}()\n"
                 else:
-                    elem_zero_name = s.mkvar("elem_zero")
-                    slc2_name = s.mkvar("slc")
-                    s.code += f"var {elem_zero_name} {data_ptr_typ.gobasetyp}\n"
-                    s.code += f"if len({slc_name}) > 0 {{\n"
-                    s.code += f"\t{slc_name} = append(slices.Clone({slc_name}), {elem_zero_name})\n"
-                    s.code += "}\n"
-                ptr_name = s.mkvar("dptr")
-                s.code += f"var {ptr_name} {data_ptr_typ.cgo_str()}\n"
-                s.code += f"if len({slc_name}) > 0 {{\n"
-                s.code += f"\t{ptr_name} = {data_ptr_typ.conv_from_go(f"unsafe.Pointer(&{slc_name}[0])")}\n"
-                s.code += "}\n"
-                s.code += f"defer runtime.KeepAlive({slc_name})\n"
-                s.values[data_ptr_idx] = Var(ptr_name, Type(data_ptr_typ.cbasetyp, "", ptrlvl=data_ptr_typ.ptrlvl))
-                slc = Var(slc_name, Type("", data_ptr_typ.gobasetyp, goslice=True))
-                if hint.data_len_name is not None:
-                    s.values[data_len_idx] = Var(len_name, Type(data_len_typ.cbasetyp, ""))
-                    hi, lo = max(data_len_idx, data_ptr_idx), min(data_len_idx, data_ptr_idx)
-                    s.in_params[lo] = slc
-                    s.in_params.pop(hi)
-                else:
-                    s.in_params[data_ptr_idx] = slc
+                    # Slice is input parameter with specified size
+                    if self.kind != "pre_conv": continue
+
+                    [vdata, vlen] = s.get_in_params([hint.data_ptr, hint.data_len])
+                    ([vslc], [vdata, vlen]) = s.replace_in_params(
+                        [hint.data_ptr, hint.data_len],
+                        [Var(vdata.name, Type("", vdata.typ.gobasetyp, goslicelvl=1))])
+                    nfin = s.mkvar(f"{vdata.name}_fin")
+                    s.code += f"{vdata.name}, {vlen.name}, {nfin} := sliceToC({vslc.name})\n"
+                    s.code += f"defer {nfin}()\n"
             elif hint.kind == "string":
-                data_ptr_name = s.values[data_ptr_idx].name
-                data_name = s.mkvar("dptr")
-                fin_name = s.mkvar("dfin")
-                s.code += f"{data_name}, {fin_name} := stringToC({data_ptr_name})\n"
-                s.code += f"defer {fin_name}()\n"
-                s.values[data_ptr_idx] = Var(data_name, Type("char", "", ptrlvl=1))
-                s.in_params[data_ptr_idx] = Var(data_ptr_name, Type("", "string"))
+                # Zero-terminated input string
+                if self.kind != "pre_conv": continue
+
+                [vdata] = s.get_in_params([hint.data_ptr])
+                ([vstr], [vdata]) = s.replace_in_params(
+                    [hint.data_ptr],
+                    [Var(vdata.name, Type("", "string"))])
+                nfin = s.mkvar(f"{vdata.name}_fin")
+                s.code += f"{vdata.name}, {nfin} := stringToC({vstr.name})\n"
+                vdata.typ = Type("char", "", ptrlvl=1)
+                s.code += f"defer {nfin}()\n"
             elif hint.kind == "stringarr":
-                data_count_idx = val_names.index(hint.data_count_name)
-                data_ptr_name = s.values[data_ptr_idx].name
-                data_name = s.mkvar("dptr")
-                lens_name = s.mkvar("dlens")
-                count_name = s.mkvar("dcnt")
-                fin_name = s.mkvar("dfin")
-                s.code += f"{data_name}, {lens_name}, {fin_name} := stringsToC({data_ptr_name})\n"
-                s.code += f"{count_name} := C.cl_uint(len({data_ptr_name}))\n"
-                s.code += f"defer {fin_name}()\n"
-                s.values[data_count_idx] = Var(count_name, Type("cl_uint", ""))
-                s.values[data_ptr_idx] = Var(data_name, Type("char", "", ptrlvl=2))
-                s.values[data_len_idx] = Var(lens_name, Type("size_t", "", ptrlvl=1))
-                s.in_params[data_ptr_idx] = Var(data_ptr_name, Type("", "string", goslice=True))
-                s.in_params.pop(data_len_idx)
-                s.in_params.pop(data_count_idx)
-            else:
-                actual_len_idx = val_names.index(hint.actual_len_name)
-        #in_names = [p.name for p in s.in_params]
-        #if not ("host_ptr" in in_names and "size" in in_names):
-        #    return
-        #s.generic += "E comparable, S ~[]E"
+                # Array of input strings with size specifications
+                if self.kind != "pre_conv": continue
+
+                assert hint.data_len is not None
+                assert hint.data_count is not None
+                [vdata, vlens, vcnt] = s.get_in_params([hint.data_ptr, hint.data_len, hint.data_count])
+                ([vstrs], [vdata, vlens, vcnt]) = s.replace_in_params(
+                    [hint.data_ptr, hint.data_len, hint.data_count],
+                    [Var(vdata.name, Type("", "string", goslicelvl=1))])
+                nfin = s.mkvar(f"{vdata.name}_fin")
+                s.code += f"{vdata.name}, {vlens.name}, {nfin} := stringsToC({vstrs.name})\n"
+                vdata.typ = Type("char", "", ptrlvl=2)
+                vlens.typ = Type("size_t", "", ptrlvl=1)
+                s.code += f"{vcnt.name} := len({vstrs.name})\n"
+                s.code += f"defer {nfin}()\n"
+            elif hint.kind == "bytesarr":
+                # Array of input byte arrays with size specifications
+                if self.kind != "pre_conv": continue
+
+                assert hint.data_len is not None
+                assert hint.data_count is None
+                [vdata, vlens] = s.get_in_params([hint.data_ptr, hint.data_len])
+                ([vslcs], [vdata, vlens]) = s.replace_in_params(
+                    [hint.data_ptr, hint.data_len],
+                    [Var(vdata.name, Type("", "byte", goslicelvl=2))])
+                nfin = s.mkvar(f"{vdata.name}_fin")
+                s.code += f"{vdata.name}, {vlens.name}, {nfin} := byteSlicesToC({vslcs.name})\n"
+                vdata.typ = Type("uchar", "", ptrlvl=2)
+                vlens.typ = Type("size_t", "", ptrlvl=1)
+                s.code += f"defer {nfin}()\n"
+
 
 class FunctionStepCall(FunctionStep):
     def __call__(self, s: FunctionStepState, ctx: Context, func: Function):
-        if len(s.out_params) > 0:
+        assert func.typ.func_params is not None
+        assert func.typ.func_results is not None
+        params = func.typ.func_params
+        results = func.typ.func_results
+        returns_err = (not "errcode_ret" in [p.name for p in params] and
+            len(results) == 1 and results[0].typ.cbasetyp == "cl_int")
+        if func.name == "clGetExtensionFunctionAddressForPlatform":
+            print(results)
+
+        if len(results) > 0:
+            assert len(results) == 1
             retname = s.mkvar("res")
             s.code += f"{retname} := "
         s.code += f"C.{func.name}("
-        for i, param in enumerate(s.values):
+        for i, v in enumerate(s.values):
             if i != 0:
                 s.code += ", "
-            s.code += param.name
+            s.code += v.name
         s.code += ")\n"
         s.values = []
-        if len(s.out_params) > 0:
-            s.values.append(Var(retname, s.out_params[0].typ))
+        if len(results) > 0:
+            if returns_err:
+                s.out_params.append(Var("_err", Type("", "error")))
+                s.out_values.append(Var(f"makeError(ErrorCode({retname}))", Type("", "error")))
+            else:
+                s.out_params.insert(0, Var("_res", results[0].typ))
+                s.out_values.insert(0, Var(retname, s.out_params[0].typ))
 
-class FunctionStepErrorPreCall(FunctionStep):
-    def __call__(self, s: FunctionStepState, ctx: Context, func: Function):
-        in_names = [p.name for p in s.in_params]
-        if "errcode_ret" in in_names:
-            ec_idx = in_names.index("errcode_ret")
-            s.in_params.pop(ec_idx)
-            s.code += "var errCode C.cl_int\n"
-            ec_v_idx = [v.name for v in s.values].index("errcode_ret")
-            s.values[ec_v_idx] = Var("&errCode", Type("cl_int", "", ptrlvl=1))
+@dataclass
+class ResultHint:
+    param: str
+    kind: Literal["normal", "error"] = "normal"
 
-class FunctionStepErrorPostCall(FunctionStep):
+RESULT_HINTS: dict[str, list[ResultHint]] = {
+    r"\w+": [ResultHint("errcode_ret", kind="error")],
+    r"clGetDeviceAndHostTimer": [ResultHint("device_timestamp"), ResultHint("host_timestamp")],
+    r"clGetHostTimer": [ResultHint("host_timestamp")],
+}
+
+# Turns function results passed as pointers in the C API into
+# results in the Go API.
+#
+# Parameters returned as slices are handled in FunctionStepSlice.
+class FunctionStepParamResults(FunctionStep):
     def __call__(self, s: FunctionStepState, ctx: Context, func: Function):
-        in_names = [p.name for p in func.typ.func_params]
-        if "errcode_ret" in in_names:
-            err = s.mkvar("err")
-            s.code += f"{err} := makeError(ErrorCode(errCode))\n"
-            s.out_params.append(Var("_", Type("", "error")))
-            s.values.append(Var(err, Type("", "error")))
-        elif len(s.out_params) >= 1 and s.out_params[0].typ.cbasetyp == "cl_int":
-            err = s.mkvar("err")
-            s.code += f"{err} := makeError(ErrorCode({s.values[0].name}))\n"
-            s.out_params[0] = Var("_", Type("", "error"))
-            s.values[0] = Var(err, Type("", "error"))
+        hints = [h for [pat, hs] in RESULT_HINTS.items() for h in hs if re.fullmatch(pat, func.name)]
+        for hint in hints:
+            in_names = [p.name for p in s.in_params]
+            v_names = [p.name for p in s.values]
+            if hint.param not in in_names:
+                continue
+            ip = in_names.index(hint.param)
+            iv = v_names.index(hint.param)
+            vres = s.mkvar(f"{hint.param}")
+            btyp = s.in_params[ip].typ.cbasetyp
+            s.code += f"var {vres} {Type(btyp, "").cgo_str()}\n"
+            s.values[iv] = Var(f"&{vres}", Type(btyp, "", ptrlvl=1))
+            if hint.kind == "error":
+                otyp = Type("", "error")
+                s.out_values.append(Var(f"makeError(ErrorCode({vres}))", otyp))
+                s.out_params.append(Var(f"_{hint.param}", otyp))
+            else:
+                otyp = ctx.typs[btyp]
+                s.out_values.append(Var(f"{vres}", otyp))
+                s.out_params.append(Var(f"_{hint.param}", otyp))
+            s.in_params.pop(ip)
 
 class FunctionStepRet(FunctionStep):
     def __call__(self, s: FunctionStepState, ctx: Context, func: Function):
-        if len(s.values) == 0:
+        if len(s.out_values) == 0:
             return
         s.code += "return "
-        for i, param in enumerate(s.values):
+        for i, param in enumerate(s.out_values):
             if i != 0:
                 s.code += ", "
             s.code += param.name
         s.code += "\n"
-        s.values = []
+        s.out_values = []
 
 def generate_bindings(dstfile: str, go_prelude: str, headers: list[str]) -> None:
     with open(dstfile, "w") as o, open(dstfile+".h", "w") as o_c:
@@ -782,9 +926,11 @@ def generate_bindings(dstfile: str, go_prelude: str, headers: list[str]) -> None
             if os.path.basename(header) == "cl.h":
                 o.write("// Enums\n\n")
                 enums = []
+                err_codes = re.search(r"^\/\* Error Codes \*\/\n(?P<body>(.+\n\n?)+)", hdr, re.MULTILINE)
+                assert err_codes is not None
                 enums.append(Enum(
                         "int",
-                        re.search(r"^\/\* Error Codes \*\/\n(?P<body>(.+\n\n?)+)", hdr, re.MULTILINE)["body"],
+                        err_codes["body"],
                         gotyp="ErrorCode",
                     ))
                 for m in re.finditer(r"^\/\* (?P<type>cl_\w+)( and (?P<type2>cl_\w+))?( - bitfield)? \*\/\n(?P<body>([^\n].*\n)+)", hdr, re.MULTILINE):
@@ -830,16 +976,17 @@ def generate_bindings(dstfile: str, go_prelude: str, headers: list[str]) -> None
                         #func.typ.func_params[1].typ.func_params = [Var("user_data", Type("void", "void", ptrlvl=1))]
 
                     steps = [
-                        #FunctionStepNumEntries(),
-                        FunctionStepSlice(),
-                        FunctionStepErrorPreCall(),
-                        FunctionStepConvToC(),
+                        FunctionStepSlice("pre_conv"),
+                        FunctionStepParamResults(),
+                        FunctionStepConvToC("values"),
+                        FunctionStepSlice("post_conv"),
                         FunctionStepCall(),
-                        FunctionStepErrorPostCall(),
-                        FunctionStepConvToGo(),
+                        FunctionStepConvToGo("out_values"),
                         FunctionStepRet(),
                     ]
-                    step_st = FunctionStepState(func.typ.func_params, [Var("_", func.typ.func_results[0].typ)] if len(func.typ.func_results) > 0 else [])
+                    assert func.typ.func_params is not None
+                    assert func.typ.func_results is not None
+                    step_st = FunctionStepState(func.typ.func_params)
                     for step in steps:
                         step(step_st, ctx, func)
 

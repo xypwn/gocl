@@ -30,14 +30,32 @@ func boolToClBool(b bool) C.cl_bool {
     }
 }
 func cstringToString(cstr *C.char) string {
-	s := (*[1<<30]C.char)(unsafe.Pointer(cstr))
+    s := (*[1<<30]C.char)(unsafe.Pointer(cstr))
     i := 0
     for ; s[i] != 0; i++ {}
     str := make([]byte, i)
-	for j := 0; j < i; j++ {
-		str[j] = byte(s[j])
-	}
+    for j := 0; j < i; j++ {
+        str[j] = byte(s[j])
+    }
     return string(str)
+}
+func sliceToC[E any, S ~[]E](s S) (data unsafe.Pointer, length C.size_t, fin func()) {
+    if len(s) == 0 {
+        return nil, 0, func() {}
+    }
+    var pin runtime.Pinner
+    pin.Pin(&s[0])
+    return unsafe.Pointer(&s[0]), C.size_t(len(s)), pin.Unpin
+}
+func sliceToCZeroTerm[E any, S ~[]E](s S) (data unsafe.Pointer, fin func()) {
+    if len(s) == 0 {
+        return nil, func() {}
+    }
+    var zero E
+    s = append(slices.Clone(s), zero)
+    var pin runtime.Pinner
+    pin.Pin(&s[0])
+    return unsafe.Pointer(&s[0]), pin.Unpin
 }
 func stringToC(s string) (_ *C.char, fin func()) {
     var pin runtime.Pinner
@@ -71,7 +89,7 @@ func stringsToC(ss []string) (data **C.char, lengths *C.size_t, fin func()) {
     fin = pin.Unpin
     return
 }
-func byteArraysToC(bs [][]byte) (data **C.uchar, lengths *C.size_t, fin func()) {
+func byteSlicesToC(bs [][]byte) (data **C.uchar, lengths *C.size_t, fin func()) {
     if len(bs) == 0 {
         return nil, nil, func() {}
     }
@@ -1674,107 +1692,94 @@ func (v DeviceIntegerDotProductCapabilities) String() string {
 // Functions
 
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetPlatformIDs.html
-func GetPlatformIDs(num_entries uint32, platforms *PlatformId, num_platforms *uint32) (_ error) {
-	num_entries_1 := C.cl_uint(num_entries)
-	platforms_1 := (*C.cl_platform_id)(platforms)
-	num_platforms_1 := (*C.cl_uint)(num_platforms)
-	res := C.clGetPlatformIDs(num_entries_1, platforms_1, num_platforms_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+func GetPlatformIDs() (_platforms []PlatformId, _err error) {
+	var platforms_actual_len C.cl_uint
+	C.clGetPlatformIDs(0, nil, &platforms_actual_len)
+	platforms_1 := make([]PlatformId, platforms_actual_len)
+	platforms, num_entries, platforms_fin := sliceToC(platforms_1)
+	defer platforms_fin()
+	res := C.clGetPlatformIDs(C.cl_uint(num_entries), (*C.cl_platform_id)(platforms), nil)
+	return platforms_1, makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetPlatformInfo.html
-func GetPlatformInfo(platform PlatformId, param_name PlatformInfo, param_value_size uint64, param_value unsafe.Pointer, param_value_size_ret *uint64) (_ error) {
+func GetPlatformInfo(platform PlatformId, param_name PlatformInfo, param_value_size uint64, param_value unsafe.Pointer, param_value_size_ret *uint64) (_err error) {
 	platform_1 := C.cl_platform_id(platform)
 	param_name_1 := C.cl_platform_info(param_name)
 	param_value_size_1 := C.size_t(param_value_size)
 	param_value_1 := param_value
 	param_value_size_ret_1 := (*C.size_t)(param_value_size_ret)
 	res := C.clGetPlatformInfo(platform_1, param_name_1, param_value_size_1, param_value_1, param_value_size_ret_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetDeviceIDs.html
-func GetDeviceIDs(platform PlatformId, device_type DeviceType, num_entries uint32, devices *DeviceId, num_devices *uint32) (_ error) {
+func GetDeviceIDs(platform PlatformId, device_type DeviceType) (_devices []DeviceId, _err error) {
 	platform_1 := C.cl_platform_id(platform)
 	device_type_1 := C.cl_device_type(device_type)
-	num_entries_1 := C.cl_uint(num_entries)
-	devices_1 := (*C.cl_device_id)(devices)
-	num_devices_1 := (*C.cl_uint)(num_devices)
-	res := C.clGetDeviceIDs(platform_1, device_type_1, num_entries_1, devices_1, num_devices_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	var devices_actual_len C.cl_uint
+	C.clGetDeviceIDs(platform_1, device_type_1, 0, nil, &devices_actual_len)
+	devices_1 := make([]DeviceId, devices_actual_len)
+	devices, num_entries, devices_fin := sliceToC(devices_1)
+	defer devices_fin()
+	res := C.clGetDeviceIDs(platform_1, device_type_1, C.cl_uint(num_entries), (*C.cl_device_id)(devices), nil)
+	return devices_1, makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetDeviceInfo.html
-func GetDeviceInfo(device DeviceId, param_name DeviceInfo, param_value_size uint64, param_value unsafe.Pointer, param_value_size_ret *uint64) (_ error) {
+func GetDeviceInfo(device DeviceId, param_name DeviceInfo, param_value_size uint64, param_value unsafe.Pointer, param_value_size_ret *uint64) (_err error) {
 	device_1 := C.cl_device_id(device)
 	param_name_1 := C.cl_device_info(param_name)
 	param_value_size_1 := C.size_t(param_value_size)
 	param_value_1 := param_value
 	param_value_size_ret_1 := (*C.size_t)(param_value_size_ret)
 	res := C.clGetDeviceInfo(device_1, param_name_1, param_value_size_1, param_value_1, param_value_size_ret_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateSubDevices.html
-func CreateSubDevices(in_device DeviceId, properties *DevicePartitionProperty, num_devices uint32, out_devices *DeviceId, num_devices_ret *uint32) (_ error) {
+func CreateSubDevices(in_device DeviceId, properties *DevicePartitionProperty, num_devices uint32, out_devices *DeviceId, num_devices_ret *uint32) (_err error) {
 	in_device_1 := C.cl_device_id(in_device)
 	properties_1 := (*C.cl_device_partition_property)(properties)
 	num_devices_1 := C.cl_uint(num_devices)
 	out_devices_1 := (*C.cl_device_id)(out_devices)
 	num_devices_ret_1 := (*C.cl_uint)(num_devices_ret)
 	res := C.clCreateSubDevices(in_device_1, properties_1, num_devices_1, out_devices_1, num_devices_ret_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clRetainDevice.html
-func RetainDevice(device DeviceId) (_ error) {
+func RetainDevice(device DeviceId) (_err error) {
 	device_1 := C.cl_device_id(device)
 	res := C.clRetainDevice(device_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clReleaseDevice.html
-func ReleaseDevice(device DeviceId) (_ error) {
+func ReleaseDevice(device DeviceId) (_err error) {
 	device_1 := C.cl_device_id(device)
 	res := C.clReleaseDevice(device_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clSetDefaultDeviceCommandQueue.html
-func SetDefaultDeviceCommandQueue(context Context, device DeviceId, command_queue CommandQueue) (_ error) {
+func SetDefaultDeviceCommandQueue(context Context, device DeviceId, command_queue CommandQueue) (_err error) {
 	context_1 := C.cl_context(context)
 	device_1 := C.cl_device_id(device)
 	command_queue_1 := C.cl_command_queue(command_queue)
 	res := C.clSetDefaultDeviceCommandQueue(context_1, device_1, command_queue_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetDeviceAndHostTimer.html
-func GetDeviceAndHostTimer(device DeviceId, device_timestamp *uint64, host_timestamp *uint64) (_ error) {
+func GetDeviceAndHostTimer(device DeviceId) (_device_timestamp uint64, _host_timestamp uint64, _err error) {
+	var device_timestamp_1 C.cl_ulong
+	var host_timestamp_1 C.cl_ulong
 	device_1 := C.cl_device_id(device)
-	device_timestamp_1 := (*C.cl_ulong)(device_timestamp)
-	host_timestamp_1 := (*C.cl_ulong)(host_timestamp)
-	res := C.clGetDeviceAndHostTimer(device_1, device_timestamp_1, host_timestamp_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	res := C.clGetDeviceAndHostTimer(device_1, &device_timestamp_1, &host_timestamp_1)
+	device_timestamp_2 := uint64(device_timestamp_1)
+	host_timestamp_2 := uint64(host_timestamp_1)
+	return device_timestamp_2, host_timestamp_2, makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetHostTimer.html
-func GetHostTimer(device DeviceId, host_timestamp *uint64) (_ error) {
+func GetHostTimer(device DeviceId) (_host_timestamp uint64, _err error) {
+	var host_timestamp_1 C.cl_ulong
 	device_1 := C.cl_device_id(device)
-	host_timestamp_1 := (*C.cl_ulong)(host_timestamp)
-	res := C.clGetHostTimer(device_1, host_timestamp_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	res := C.clGetHostTimer(device_1, &host_timestamp_1)
+	host_timestamp_2 := uint64(host_timestamp_1)
+	return host_timestamp_2, makeError(ErrorCode(res))
 }
 //export go_cl_callback_clCreateContext
 func go_cl_callback_clCreateContext(errinfo *C.char, private_info *C.void, cb C.size_t, user_data *C.void) {
@@ -1786,34 +1791,24 @@ func go_cl_callback_clCreateContext(errinfo *C.char, private_info *C.void, cb C.
 	(callbackFn(uid).(func(errinfo *int8, private_info unsafe.Pointer, cb uint64)))(errinfo_1, private_info_1, cb_1)
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateContext.html
-func CreateContext(properties []ContextProperties, devices []DeviceId, pfn_notify func(errinfo *int8, private_info unsafe.Pointer, cb uint64)) (_ Context, _ error) {
-	dlen := C.cl_uint(len(devices))
-	var dptr *C.cl_device_id
-	if len(devices) > 0 {
-		dptr = (*C.cl_device_id)(unsafe.Pointer(&devices[0]))
-	}
-	defer runtime.KeepAlive(devices)
-	var elem_zero ContextProperties
-	if len(properties) > 0 {
-		properties = append(slices.Clone(properties), elem_zero)
-	}
-	var dptr_1 *C.cl_context_properties
-	if len(properties) > 0 {
-		dptr_1 = (*C.cl_context_properties)(unsafe.Pointer(&properties[0]))
-	}
-	defer runtime.KeepAlive(properties)
-	var errCode C.cl_int
+func CreateContext(properties []ContextProperties, devices []DeviceId, pfn_notify func(errinfo *int8, private_info unsafe.Pointer, cb uint64)) (_res Context, _errcode_ret error) {
+	devices_1, num_devices_1, devices_1_fin := sliceToC(devices)
+	defer devices_1_fin()
+	properties_1, properties_1_fin := sliceToCZeroTerm(properties)
+	defer properties_1_fin()
+	var errcode_ret_1 C.cl_int
+	properties_2 := (*C.cl_context_properties)(properties_1)
+	num_devices_2 := C.cl_uint(num_devices_1)
+	devices_2 := (*C.cl_device_id)(devices_1)
 	var callback_uid unsafe.Pointer
 	var callback *[0]byte
 	if pfn_notify != nil {
 		callback_uid = unsafe.Pointer(uintptr(callbackRegister(pfn_notify)))
 		callback = (*[0]byte)(C.go_cl_callback_clCreateContext)
 	}
-	res := C.clCreateContext(dptr_1, dlen, dptr, callback, callback_uid, &errCode)
-	err := makeError(ErrorCode(errCode))
+	res := C.clCreateContext(properties_2, num_devices_2, devices_2, callback, callback_uid, &errcode_ret_1)
 	res_1 := Context(res)
-	err_1 := err
-	return res_1, err_1
+	return res_1, makeError(ErrorCode(errcode_ret_1))
 }
 //export go_cl_callback_clCreateContextFromType
 func go_cl_callback_clCreateContextFromType(errinfo *C.char, private_info *C.void, cb C.size_t, user_data *C.void) {
@@ -1825,17 +1820,11 @@ func go_cl_callback_clCreateContextFromType(errinfo *C.char, private_info *C.voi
 	(callbackFn(uid).(func(errinfo *int8, private_info unsafe.Pointer, cb uint64)))(errinfo_1, private_info_1, cb_1)
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateContextFromType.html
-func CreateContextFromType(properties []ContextProperties, device_type DeviceType, pfn_notify func(errinfo *int8, private_info unsafe.Pointer, cb uint64)) (_ Context, _ error) {
-	var elem_zero ContextProperties
-	if len(properties) > 0 {
-		properties = append(slices.Clone(properties), elem_zero)
-	}
-	var dptr *C.cl_context_properties
-	if len(properties) > 0 {
-		dptr = (*C.cl_context_properties)(unsafe.Pointer(&properties[0]))
-	}
-	defer runtime.KeepAlive(properties)
-	var errCode C.cl_int
+func CreateContextFromType(properties []ContextProperties, device_type DeviceType, pfn_notify func(errinfo *int8, private_info unsafe.Pointer, cb uint64)) (_res Context, _errcode_ret error) {
+	properties_1, properties_1_fin := sliceToCZeroTerm(properties)
+	defer properties_1_fin()
+	var errcode_ret_1 C.cl_int
+	properties_2 := (*C.cl_context_properties)(properties_1)
 	device_type_1 := C.cl_device_type(device_type)
 	var callback_uid unsafe.Pointer
 	var callback *[0]byte
@@ -1843,39 +1832,31 @@ func CreateContextFromType(properties []ContextProperties, device_type DeviceTyp
 		callback_uid = unsafe.Pointer(uintptr(callbackRegister(pfn_notify)))
 		callback = (*[0]byte)(C.go_cl_callback_clCreateContextFromType)
 	}
-	res := C.clCreateContextFromType(dptr, device_type_1, callback, callback_uid, &errCode)
-	err := makeError(ErrorCode(errCode))
+	res := C.clCreateContextFromType(properties_2, device_type_1, callback, callback_uid, &errcode_ret_1)
 	res_1 := Context(res)
-	err_1 := err
-	return res_1, err_1
+	return res_1, makeError(ErrorCode(errcode_ret_1))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clRetainContext.html
-func RetainContext(context Context) (_ error) {
+func RetainContext(context Context) (_err error) {
 	context_1 := C.cl_context(context)
 	res := C.clRetainContext(context_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clReleaseContext.html
-func ReleaseContext(context Context) (_ error) {
+func ReleaseContext(context Context) (_err error) {
 	context_1 := C.cl_context(context)
 	res := C.clReleaseContext(context_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetContextInfo.html
-func GetContextInfo(context Context, param_name ContextInfo, param_value_size uint64, param_value unsafe.Pointer, param_value_size_ret *uint64) (_ error) {
+func GetContextInfo(context Context, param_name ContextInfo, param_value_size uint64, param_value unsafe.Pointer, param_value_size_ret *uint64) (_err error) {
 	context_1 := C.cl_context(context)
 	param_name_1 := C.cl_context_info(param_name)
 	param_value_size_1 := C.size_t(param_value_size)
 	param_value_1 := param_value
 	param_value_size_ret_1 := (*C.size_t)(param_value_size_ret)
 	res := C.clGetContextInfo(context_1, param_name_1, param_value_size_1, param_value_1, param_value_size_ret_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	return makeError(ErrorCode(res))
 }
 //export go_cl_callback_clSetContextDestructorCallback
 func go_cl_callback_clSetContextDestructorCallback(context C.cl_context, user_data *C.void) {
@@ -1885,7 +1866,7 @@ func go_cl_callback_clSetContextDestructorCallback(context C.cl_context, user_da
 	(callbackFn(uid).(func(context Context)))(context_1)
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clSetContextDestructorCallback.html
-func SetContextDestructorCallback(context Context, pfn_notify func(context Context)) (_ error) {
+func SetContextDestructorCallback(context Context, pfn_notify func(context Context)) (_err error) {
 	context_1 := C.cl_context(context)
 	var callback_uid unsafe.Pointer
 	var callback *[0]byte
@@ -1894,197 +1875,165 @@ func SetContextDestructorCallback(context Context, pfn_notify func(context Conte
 		callback = (*[0]byte)(C.go_cl_callback_clSetContextDestructorCallback)
 	}
 	res := C.clSetContextDestructorCallback(context_1, callback, callback_uid)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateCommandQueueWithProperties.html
-func CreateCommandQueueWithProperties(context Context, device DeviceId, properties *QueueProperties) (_ CommandQueue, _ error) {
-	var errCode C.cl_int
+func CreateCommandQueueWithProperties(context Context, device DeviceId, properties *QueueProperties) (_res CommandQueue, _errcode_ret error) {
+	var errcode_ret_1 C.cl_int
 	context_1 := C.cl_context(context)
 	device_1 := C.cl_device_id(device)
 	properties_1 := (*C.cl_queue_properties)(properties)
-	res := C.clCreateCommandQueueWithProperties(context_1, device_1, properties_1, &errCode)
-	err := makeError(ErrorCode(errCode))
+	res := C.clCreateCommandQueueWithProperties(context_1, device_1, properties_1, &errcode_ret_1)
 	res_1 := CommandQueue(res)
-	err_1 := err
-	return res_1, err_1
+	return res_1, makeError(ErrorCode(errcode_ret_1))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clRetainCommandQueue.html
-func RetainCommandQueue(command_queue CommandQueue) (_ error) {
+func RetainCommandQueue(command_queue CommandQueue) (_err error) {
 	command_queue_1 := C.cl_command_queue(command_queue)
 	res := C.clRetainCommandQueue(command_queue_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clReleaseCommandQueue.html
-func ReleaseCommandQueue(command_queue CommandQueue) (_ error) {
+func ReleaseCommandQueue(command_queue CommandQueue) (_err error) {
 	command_queue_1 := C.cl_command_queue(command_queue)
 	res := C.clReleaseCommandQueue(command_queue_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetCommandQueueInfo.html
-func GetCommandQueueInfo(command_queue CommandQueue, param_name CommandQueueInfo, param_value_size uint64, param_value unsafe.Pointer, param_value_size_ret *uint64) (_ error) {
+func GetCommandQueueInfo(command_queue CommandQueue, param_name CommandQueueInfo, param_value_size uint64, param_value unsafe.Pointer, param_value_size_ret *uint64) (_err error) {
 	command_queue_1 := C.cl_command_queue(command_queue)
 	param_name_1 := C.cl_command_queue_info(param_name)
 	param_value_size_1 := C.size_t(param_value_size)
 	param_value_1 := param_value
 	param_value_size_ret_1 := (*C.size_t)(param_value_size_ret)
 	res := C.clGetCommandQueueInfo(command_queue_1, param_name_1, param_value_size_1, param_value_1, param_value_size_ret_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateBuffer.html
-func CreateBuffer(context Context, flags MemFlags, size uint64, host_ptr unsafe.Pointer) (_ Mem, _ error) {
-	var errCode C.cl_int
+func CreateBuffer(context Context, flags MemFlags, size uint64, host_ptr unsafe.Pointer) (_res Mem, _errcode_ret error) {
+	var errcode_ret_1 C.cl_int
 	context_1 := C.cl_context(context)
 	flags_1 := C.cl_mem_flags(flags)
 	size_1 := C.size_t(size)
 	host_ptr_1 := host_ptr
-	res := C.clCreateBuffer(context_1, flags_1, size_1, host_ptr_1, &errCode)
-	err := makeError(ErrorCode(errCode))
+	res := C.clCreateBuffer(context_1, flags_1, size_1, host_ptr_1, &errcode_ret_1)
 	res_1 := Mem(res)
-	err_1 := err
-	return res_1, err_1
+	return res_1, makeError(ErrorCode(errcode_ret_1))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateSubBuffer.html
-func CreateSubBuffer(buffer Mem, flags MemFlags, buffer_create_type BufferCreateType, buffer_create_info unsafe.Pointer) (_ Mem, _ error) {
-	var errCode C.cl_int
+func CreateSubBuffer(buffer Mem, flags MemFlags, buffer_create_type BufferCreateType, buffer_create_info unsafe.Pointer) (_res Mem, _errcode_ret error) {
+	var errcode_ret_1 C.cl_int
 	buffer_1 := C.cl_mem(buffer)
 	flags_1 := C.cl_mem_flags(flags)
 	buffer_create_type_1 := C.cl_buffer_create_type(buffer_create_type)
 	buffer_create_info_1 := buffer_create_info
-	res := C.clCreateSubBuffer(buffer_1, flags_1, buffer_create_type_1, buffer_create_info_1, &errCode)
-	err := makeError(ErrorCode(errCode))
+	res := C.clCreateSubBuffer(buffer_1, flags_1, buffer_create_type_1, buffer_create_info_1, &errcode_ret_1)
 	res_1 := Mem(res)
-	err_1 := err
-	return res_1, err_1
+	return res_1, makeError(ErrorCode(errcode_ret_1))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateImage.html
-func CreateImage(context Context, flags MemFlags, image_format *ImageFormat, image_desc *ImageDesc, host_ptr unsafe.Pointer) (_ Mem, _ error) {
-	var errCode C.cl_int
+func CreateImage(context Context, flags MemFlags, image_format *ImageFormat, image_desc *ImageDesc, host_ptr unsafe.Pointer) (_res Mem, _errcode_ret error) {
+	var errcode_ret_1 C.cl_int
 	context_1 := C.cl_context(context)
 	flags_1 := C.cl_mem_flags(flags)
 	image_format_1 := (*C.cl_image_format)(image_format)
 	image_desc_1 := (*C.cl_image_desc)(image_desc)
 	host_ptr_1 := host_ptr
-	res := C.clCreateImage(context_1, flags_1, image_format_1, image_desc_1, host_ptr_1, &errCode)
-	err := makeError(ErrorCode(errCode))
+	res := C.clCreateImage(context_1, flags_1, image_format_1, image_desc_1, host_ptr_1, &errcode_ret_1)
 	res_1 := Mem(res)
-	err_1 := err
-	return res_1, err_1
+	return res_1, makeError(ErrorCode(errcode_ret_1))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreatePipe.html
-func CreatePipe(context Context, flags MemFlags, pipe_packet_size uint32, pipe_max_packets uint32, properties *PipeProperties) (_ Mem, _ error) {
-	var errCode C.cl_int
+func CreatePipe(context Context, flags MemFlags, pipe_packet_size uint32, pipe_max_packets uint32, properties *PipeProperties) (_res Mem, _errcode_ret error) {
+	var errcode_ret_1 C.cl_int
 	context_1 := C.cl_context(context)
 	flags_1 := C.cl_mem_flags(flags)
 	pipe_packet_size_1 := C.cl_uint(pipe_packet_size)
 	pipe_max_packets_1 := C.cl_uint(pipe_max_packets)
 	properties_1 := (*C.cl_pipe_properties)(properties)
-	res := C.clCreatePipe(context_1, flags_1, pipe_packet_size_1, pipe_max_packets_1, properties_1, &errCode)
-	err := makeError(ErrorCode(errCode))
+	res := C.clCreatePipe(context_1, flags_1, pipe_packet_size_1, pipe_max_packets_1, properties_1, &errcode_ret_1)
 	res_1 := Mem(res)
-	err_1 := err
-	return res_1, err_1
+	return res_1, makeError(ErrorCode(errcode_ret_1))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateBufferWithProperties.html
-func CreateBufferWithProperties(context Context, properties *MemProperties, flags MemFlags, size uint64, host_ptr unsafe.Pointer) (_ Mem, _ error) {
-	var errCode C.cl_int
+func CreateBufferWithProperties(context Context, properties *MemProperties, flags MemFlags, size uint64, host_ptr unsafe.Pointer) (_res Mem, _errcode_ret error) {
+	var errcode_ret_1 C.cl_int
 	context_1 := C.cl_context(context)
 	properties_1 := (*C.cl_mem_properties)(properties)
 	flags_1 := C.cl_mem_flags(flags)
 	size_1 := C.size_t(size)
 	host_ptr_1 := host_ptr
-	res := C.clCreateBufferWithProperties(context_1, properties_1, flags_1, size_1, host_ptr_1, &errCode)
-	err := makeError(ErrorCode(errCode))
+	res := C.clCreateBufferWithProperties(context_1, properties_1, flags_1, size_1, host_ptr_1, &errcode_ret_1)
 	res_1 := Mem(res)
-	err_1 := err
-	return res_1, err_1
+	return res_1, makeError(ErrorCode(errcode_ret_1))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateImageWithProperties.html
-func CreateImageWithProperties(context Context, properties *MemProperties, flags MemFlags, image_format *ImageFormat, image_desc *ImageDesc, host_ptr unsafe.Pointer) (_ Mem, _ error) {
-	var errCode C.cl_int
+func CreateImageWithProperties(context Context, properties *MemProperties, flags MemFlags, image_format *ImageFormat, image_desc *ImageDesc, host_ptr unsafe.Pointer) (_res Mem, _errcode_ret error) {
+	var errcode_ret_1 C.cl_int
 	context_1 := C.cl_context(context)
 	properties_1 := (*C.cl_mem_properties)(properties)
 	flags_1 := C.cl_mem_flags(flags)
 	image_format_1 := (*C.cl_image_format)(image_format)
 	image_desc_1 := (*C.cl_image_desc)(image_desc)
 	host_ptr_1 := host_ptr
-	res := C.clCreateImageWithProperties(context_1, properties_1, flags_1, image_format_1, image_desc_1, host_ptr_1, &errCode)
-	err := makeError(ErrorCode(errCode))
+	res := C.clCreateImageWithProperties(context_1, properties_1, flags_1, image_format_1, image_desc_1, host_ptr_1, &errcode_ret_1)
 	res_1 := Mem(res)
-	err_1 := err
-	return res_1, err_1
+	return res_1, makeError(ErrorCode(errcode_ret_1))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clRetainMemObject.html
-func RetainMemObject(memobj Mem) (_ error) {
+func RetainMemObject(memobj Mem) (_err error) {
 	memobj_1 := C.cl_mem(memobj)
 	res := C.clRetainMemObject(memobj_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clReleaseMemObject.html
-func ReleaseMemObject(memobj Mem) (_ error) {
+func ReleaseMemObject(memobj Mem) (_err error) {
 	memobj_1 := C.cl_mem(memobj)
 	res := C.clReleaseMemObject(memobj_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetSupportedImageFormats.html
-func GetSupportedImageFormats(context Context, flags MemFlags, image_type MemObjectType, num_entries uint32, image_formats *ImageFormat, num_image_formats *uint32) (_ error) {
+func GetSupportedImageFormats(context Context, flags MemFlags, image_type MemObjectType) (_image_formats []ImageFormat, _err error) {
 	context_1 := C.cl_context(context)
 	flags_1 := C.cl_mem_flags(flags)
 	image_type_1 := C.cl_mem_object_type(image_type)
-	num_entries_1 := C.cl_uint(num_entries)
-	image_formats_1 := (*C.cl_image_format)(image_formats)
-	num_image_formats_1 := (*C.cl_uint)(num_image_formats)
-	res := C.clGetSupportedImageFormats(context_1, flags_1, image_type_1, num_entries_1, image_formats_1, num_image_formats_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	var image_formats_actual_len C.cl_uint
+	C.clGetSupportedImageFormats(context_1, flags_1, image_type_1, 0, nil, &image_formats_actual_len)
+	image_formats_1 := make([]ImageFormat, image_formats_actual_len)
+	image_formats, num_entries, image_formats_fin := sliceToC(image_formats_1)
+	defer image_formats_fin()
+	res := C.clGetSupportedImageFormats(context_1, flags_1, image_type_1, C.cl_uint(num_entries), (*C.cl_image_format)(image_formats), nil)
+	return image_formats_1, makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetMemObjectInfo.html
-func GetMemObjectInfo(memobj Mem, param_name MemInfo, param_value_size uint64, param_value unsafe.Pointer, param_value_size_ret *uint64) (_ error) {
+func GetMemObjectInfo(memobj Mem, param_name MemInfo, param_value_size uint64, param_value unsafe.Pointer, param_value_size_ret *uint64) (_err error) {
 	memobj_1 := C.cl_mem(memobj)
 	param_name_1 := C.cl_mem_info(param_name)
 	param_value_size_1 := C.size_t(param_value_size)
 	param_value_1 := param_value
 	param_value_size_ret_1 := (*C.size_t)(param_value_size_ret)
 	res := C.clGetMemObjectInfo(memobj_1, param_name_1, param_value_size_1, param_value_1, param_value_size_ret_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetImageInfo.html
-func GetImageInfo(image Mem, param_name ImageInfo, param_value_size uint64, param_value unsafe.Pointer, param_value_size_ret *uint64) (_ error) {
+func GetImageInfo(image Mem, param_name ImageInfo, param_value_size uint64, param_value unsafe.Pointer, param_value_size_ret *uint64) (_err error) {
 	image_1 := C.cl_mem(image)
 	param_name_1 := C.cl_image_info(param_name)
 	param_value_size_1 := C.size_t(param_value_size)
 	param_value_1 := param_value
 	param_value_size_ret_1 := (*C.size_t)(param_value_size_ret)
 	res := C.clGetImageInfo(image_1, param_name_1, param_value_size_1, param_value_1, param_value_size_ret_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetPipeInfo.html
-func GetPipeInfo(pipe Mem, param_name PipeInfo, param_value_size uint64, param_value unsafe.Pointer, param_value_size_ret *uint64) (_ error) {
+func GetPipeInfo(pipe Mem, param_name PipeInfo, param_value_size uint64, param_value unsafe.Pointer, param_value_size_ret *uint64) (_err error) {
 	pipe_1 := C.cl_mem(pipe)
 	param_name_1 := C.cl_pipe_info(param_name)
 	param_value_size_1 := C.size_t(param_value_size)
 	param_value_1 := param_value
 	param_value_size_ret_1 := (*C.size_t)(param_value_size_ret)
 	res := C.clGetPipeInfo(pipe_1, param_name_1, param_value_size_1, param_value_1, param_value_size_ret_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	return makeError(ErrorCode(res))
 }
 //export go_cl_callback_clSetMemObjectDestructorCallback
 func go_cl_callback_clSetMemObjectDestructorCallback(memobj C.cl_mem, user_data *C.void) {
@@ -2094,7 +2043,7 @@ func go_cl_callback_clSetMemObjectDestructorCallback(memobj C.cl_mem, user_data 
 	(callbackFn(uid).(func(memobj Mem)))(memobj_1)
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clSetMemObjectDestructorCallback.html
-func SetMemObjectDestructorCallback(memobj Mem, pfn_notify func(memobj Mem)) (_ error) {
+func SetMemObjectDestructorCallback(memobj Mem, pfn_notify func(memobj Mem)) (_err error) {
 	memobj_1 := C.cl_mem(memobj)
 	var callback_uid unsafe.Pointer
 	var callback *[0]byte
@@ -2103,17 +2052,17 @@ func SetMemObjectDestructorCallback(memobj Mem, pfn_notify func(memobj Mem)) (_ 
 		callback = (*[0]byte)(C.go_cl_callback_clSetMemObjectDestructorCallback)
 	}
 	res := C.clSetMemObjectDestructorCallback(memobj_1, callback, callback_uid)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clSVMAlloc.html
-func SVMAlloc(context Context, flags SvmMemFlags, size uint64, alignment uint32) {
+func SVMAlloc(context Context, flags SvmMemFlags, size uint64, alignment uint32) (_res unsafe.Pointer) {
 	context_1 := C.cl_context(context)
 	flags_1 := C.cl_svm_mem_flags(flags)
 	size_1 := C.size_t(size)
 	alignment_1 := C.cl_uint(alignment)
-	C.clSVMAlloc(context_1, flags_1, size_1, alignment_1)
+	res := C.clSVMAlloc(context_1, flags_1, size_1, alignment_1)
+	res_1 := (unsafe.Pointer)(res)
+	return res_1
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clSVMFree.html
 func SVMFree(context Context, svm_pointer unsafe.Pointer) {
@@ -2122,120 +2071,98 @@ func SVMFree(context Context, svm_pointer unsafe.Pointer) {
 	C.clSVMFree(context_1, svm_pointer_1)
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateSamplerWithProperties.html
-func CreateSamplerWithProperties(context Context, sampler_properties *SamplerProperties) (_ Sampler, _ error) {
-	var errCode C.cl_int
+func CreateSamplerWithProperties(context Context, sampler_properties *SamplerProperties) (_res Sampler, _errcode_ret error) {
+	var errcode_ret_1 C.cl_int
 	context_1 := C.cl_context(context)
 	sampler_properties_1 := (*C.cl_sampler_properties)(sampler_properties)
-	res := C.clCreateSamplerWithProperties(context_1, sampler_properties_1, &errCode)
-	err := makeError(ErrorCode(errCode))
+	res := C.clCreateSamplerWithProperties(context_1, sampler_properties_1, &errcode_ret_1)
 	res_1 := Sampler(res)
-	err_1 := err
-	return res_1, err_1
+	return res_1, makeError(ErrorCode(errcode_ret_1))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clRetainSampler.html
-func RetainSampler(sampler Sampler) (_ error) {
+func RetainSampler(sampler Sampler) (_err error) {
 	sampler_1 := C.cl_sampler(sampler)
 	res := C.clRetainSampler(sampler_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clReleaseSampler.html
-func ReleaseSampler(sampler Sampler) (_ error) {
+func ReleaseSampler(sampler Sampler) (_err error) {
 	sampler_1 := C.cl_sampler(sampler)
 	res := C.clReleaseSampler(sampler_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetSamplerInfo.html
-func GetSamplerInfo(sampler Sampler, param_name SamplerInfo, param_value_size uint64, param_value unsafe.Pointer, param_value_size_ret *uint64) (_ error) {
+func GetSamplerInfo(sampler Sampler, param_name SamplerInfo, param_value_size uint64, param_value unsafe.Pointer, param_value_size_ret *uint64) (_err error) {
 	sampler_1 := C.cl_sampler(sampler)
 	param_name_1 := C.cl_sampler_info(param_name)
 	param_value_size_1 := C.size_t(param_value_size)
 	param_value_1 := param_value
 	param_value_size_ret_1 := (*C.size_t)(param_value_size_ret)
 	res := C.clGetSamplerInfo(sampler_1, param_name_1, param_value_size_1, param_value_1, param_value_size_ret_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateProgramWithSource.html
-func CreateProgramWithSource(context Context, strings []string) (_ Program, _ error) {
-	dptr, dlens, dfin := stringsToC(strings)
-	dcnt := C.cl_uint(len(strings))
-	defer dfin()
-	var errCode C.cl_int
+func CreateProgramWithSource(context Context, strings []string) (_res Program, _errcode_ret error) {
+	strings_1, lengths_1, strings_1_fin := stringsToC(strings)
+	count_1 := len(strings)
+	defer strings_1_fin()
+	var errcode_ret_1 C.cl_int
 	context_1 := C.cl_context(context)
-	res := C.clCreateProgramWithSource(context_1, dcnt, dptr, dlens, &errCode)
-	err := makeError(ErrorCode(errCode))
+	count_2 := C.cl_uint(count_1)
+	res := C.clCreateProgramWithSource(context_1, count_2, strings_1, lengths_1, &errcode_ret_1)
 	res_1 := Program(res)
-	err_1 := err
-	return res_1, err_1
+	return res_1, makeError(ErrorCode(errcode_ret_1))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateProgramWithBinary.html
-func CreateProgramWithBinary(context Context, device_list []DeviceId, lengths *uint64, binaries **uint8, binary_status *int32) (_ Program, _ error) {
-	dlen := C.cl_uint(len(device_list))
-	var dptr *C.cl_device_id
-	if len(device_list) > 0 {
-		dptr = (*C.cl_device_id)(unsafe.Pointer(&device_list[0]))
-	}
-	defer runtime.KeepAlive(device_list)
-	var errCode C.cl_int
+func CreateProgramWithBinary(context Context, device_list []DeviceId, binaries [][]byte, binary_status *int32) (_res Program, _errcode_ret error) {
+	device_list_1, num_devices_1, device_list_1_fin := sliceToC(device_list)
+	defer device_list_1_fin()
+	binaries_1, lengths_1, binaries_1_fin := byteSlicesToC(binaries)
+	defer binaries_1_fin()
+	var errcode_ret_1 C.cl_int
 	context_1 := C.cl_context(context)
-	lengths_1 := (*C.size_t)(lengths)
-	binaries_1 := (**C.uchar)(unsafe.Pointer(binaries))
+	num_devices_2 := C.cl_uint(num_devices_1)
+	device_list_2 := (*C.cl_device_id)(device_list_1)
 	binary_status_1 := (*C.cl_int)(binary_status)
-	res := C.clCreateProgramWithBinary(context_1, dlen, dptr, lengths_1, binaries_1, binary_status_1, &errCode)
-	err := makeError(ErrorCode(errCode))
+	res := C.clCreateProgramWithBinary(context_1, num_devices_2, device_list_2, lengths_1, binaries_1, binary_status_1, &errcode_ret_1)
 	res_1 := Program(res)
-	err_1 := err
-	return res_1, err_1
+	return res_1, makeError(ErrorCode(errcode_ret_1))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateProgramWithBuiltInKernels.html
-func CreateProgramWithBuiltInKernels(context Context, device_list []DeviceId, kernel_names *int8) (_ Program, _ error) {
-	dlen := C.cl_uint(len(device_list))
-	var dptr *C.cl_device_id
-	if len(device_list) > 0 {
-		dptr = (*C.cl_device_id)(unsafe.Pointer(&device_list[0]))
-	}
-	defer runtime.KeepAlive(device_list)
-	var errCode C.cl_int
+func CreateProgramWithBuiltInKernels(context Context, device_list []DeviceId, kernel_names string) (_res Program, _errcode_ret error) {
+	device_list_1, num_devices_1, device_list_1_fin := sliceToC(device_list)
+	defer device_list_1_fin()
+	kernel_names_1, kernel_names_1_fin := stringToC(kernel_names)
+	defer kernel_names_1_fin()
+	var errcode_ret_1 C.cl_int
 	context_1 := C.cl_context(context)
-	kernel_names_1 := (*C.char)(kernel_names)
-	res := C.clCreateProgramWithBuiltInKernels(context_1, dlen, dptr, kernel_names_1, &errCode)
-	err := makeError(ErrorCode(errCode))
+	num_devices_2 := C.cl_uint(num_devices_1)
+	device_list_2 := (*C.cl_device_id)(device_list_1)
+	res := C.clCreateProgramWithBuiltInKernels(context_1, num_devices_2, device_list_2, kernel_names_1, &errcode_ret_1)
 	res_1 := Program(res)
-	err_1 := err
-	return res_1, err_1
+	return res_1, makeError(ErrorCode(errcode_ret_1))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateProgramWithIL.html
-func CreateProgramWithIL(context Context, il unsafe.Pointer, length uint64) (_ Program, _ error) {
-	var errCode C.cl_int
+func CreateProgramWithIL(context Context, il unsafe.Pointer, length uint64) (_res Program, _errcode_ret error) {
+	var errcode_ret_1 C.cl_int
 	context_1 := C.cl_context(context)
 	il_1 := il
 	length_1 := C.size_t(length)
-	res := C.clCreateProgramWithIL(context_1, il_1, length_1, &errCode)
-	err := makeError(ErrorCode(errCode))
+	res := C.clCreateProgramWithIL(context_1, il_1, length_1, &errcode_ret_1)
 	res_1 := Program(res)
-	err_1 := err
-	return res_1, err_1
+	return res_1, makeError(ErrorCode(errcode_ret_1))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clRetainProgram.html
-func RetainProgram(program Program) (_ error) {
+func RetainProgram(program Program) (_err error) {
 	program_1 := C.cl_program(program)
 	res := C.clRetainProgram(program_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clReleaseProgram.html
-func ReleaseProgram(program Program) (_ error) {
+func ReleaseProgram(program Program) (_err error) {
 	program_1 := C.cl_program(program)
 	res := C.clReleaseProgram(program_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	return makeError(ErrorCode(res))
 }
 //export go_cl_callback_clBuildProgram
 func go_cl_callback_clBuildProgram(program C.cl_program, user_data *C.void) {
@@ -2245,14 +2172,12 @@ func go_cl_callback_clBuildProgram(program C.cl_program, user_data *C.void) {
 	(callbackFn(uid).(func(program Program)))(program_1)
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clBuildProgram.html
-func BuildProgram(program Program, device_list []DeviceId, options *int8, pfn_notify func(program Program)) (_ error) {
-	dlen := C.cl_uint(len(device_list))
-	var dptr *C.cl_device_id
-	if len(device_list) > 0 {
-		dptr = (*C.cl_device_id)(unsafe.Pointer(&device_list[0]))
-	}
-	defer runtime.KeepAlive(device_list)
+func BuildProgram(program Program, device_list []DeviceId, options *int8, pfn_notify func(program Program)) (_err error) {
+	device_list_1, num_devices_1, device_list_1_fin := sliceToC(device_list)
+	defer device_list_1_fin()
 	program_1 := C.cl_program(program)
+	num_devices_2 := C.cl_uint(num_devices_1)
+	device_list_2 := (*C.cl_device_id)(device_list_1)
 	options_1 := (*C.char)(options)
 	var callback_uid unsafe.Pointer
 	var callback *[0]byte
@@ -2260,10 +2185,8 @@ func BuildProgram(program Program, device_list []DeviceId, options *int8, pfn_no
 		callback_uid = unsafe.Pointer(uintptr(callbackRegister(pfn_notify)))
 		callback = (*[0]byte)(C.go_cl_callback_clBuildProgram)
 	}
-	res := C.clBuildProgram(program_1, dlen, dptr, options_1, callback, callback_uid)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	res := C.clBuildProgram(program_1, num_devices_2, device_list_2, options_1, callback, callback_uid)
+	return makeError(ErrorCode(res))
 }
 //export go_cl_callback_clCompileProgram
 func go_cl_callback_clCompileProgram(program C.cl_program, user_data *C.void) {
@@ -2273,15 +2196,14 @@ func go_cl_callback_clCompileProgram(program C.cl_program, user_data *C.void) {
 	(callbackFn(uid).(func(program Program)))(program_1)
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCompileProgram.html
-func CompileProgram(program Program, device_list []DeviceId, options *int8, num_input_headers uint32, input_headers *Program, header_include_names **int8, pfn_notify func(program Program)) (_ error) {
-	dlen := C.cl_uint(len(device_list))
-	var dptr *C.cl_device_id
-	if len(device_list) > 0 {
-		dptr = (*C.cl_device_id)(unsafe.Pointer(&device_list[0]))
-	}
-	defer runtime.KeepAlive(device_list)
+func CompileProgram(program Program, device_list []DeviceId, options string, num_input_headers uint32, input_headers *Program, header_include_names **int8, pfn_notify func(program Program)) (_err error) {
+	device_list_1, num_devices_1, device_list_1_fin := sliceToC(device_list)
+	defer device_list_1_fin()
+	options_1, options_1_fin := stringToC(options)
+	defer options_1_fin()
 	program_1 := C.cl_program(program)
-	options_1 := (*C.char)(options)
+	num_devices_2 := C.cl_uint(num_devices_1)
+	device_list_2 := (*C.cl_device_id)(device_list_1)
 	num_input_headers_1 := C.cl_uint(num_input_headers)
 	input_headers_1 := (*C.cl_program)(input_headers)
 	header_include_names_1 := (**C.char)(unsafe.Pointer(header_include_names))
@@ -2291,10 +2213,8 @@ func CompileProgram(program Program, device_list []DeviceId, options *int8, num_
 		callback_uid = unsafe.Pointer(uintptr(callbackRegister(pfn_notify)))
 		callback = (*[0]byte)(C.go_cl_callback_clCompileProgram)
 	}
-	res := C.clCompileProgram(program_1, dlen, dptr, options_1, num_input_headers_1, input_headers_1, header_include_names_1, callback, callback_uid)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	res := C.clCompileProgram(program_1, num_devices_2, device_list_2, options_1, num_input_headers_1, input_headers_1, header_include_names_1, callback, callback_uid)
+	return makeError(ErrorCode(res))
 }
 //export go_cl_callback_clLinkProgram
 func go_cl_callback_clLinkProgram(program C.cl_program, user_data *C.void) {
@@ -2304,29 +2224,28 @@ func go_cl_callback_clLinkProgram(program C.cl_program, user_data *C.void) {
 	(callbackFn(uid).(func(program Program)))(program_1)
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clLinkProgram.html
-func LinkProgram(context Context, device_list []DeviceId, options *int8, num_input_programs uint32, input_programs *Program, pfn_notify func(program Program)) (_ Program, _ error) {
-	dlen := C.cl_uint(len(device_list))
-	var dptr *C.cl_device_id
-	if len(device_list) > 0 {
-		dptr = (*C.cl_device_id)(unsafe.Pointer(&device_list[0]))
-	}
-	defer runtime.KeepAlive(device_list)
-	var errCode C.cl_int
+func LinkProgram(context Context, device_list []DeviceId, options string, input_programs []Program, pfn_notify func(program Program)) (_res Program, _errcode_ret error) {
+	device_list_1, num_devices_1, device_list_1_fin := sliceToC(device_list)
+	defer device_list_1_fin()
+	input_programs_1, num_input_programs_1, input_programs_1_fin := sliceToC(input_programs)
+	defer input_programs_1_fin()
+	options_1, options_1_fin := stringToC(options)
+	defer options_1_fin()
+	var errcode_ret_1 C.cl_int
 	context_1 := C.cl_context(context)
-	options_1 := (*C.char)(options)
-	num_input_programs_1 := C.cl_uint(num_input_programs)
-	input_programs_1 := (*C.cl_program)(input_programs)
+	num_devices_2 := C.cl_uint(num_devices_1)
+	device_list_2 := (*C.cl_device_id)(device_list_1)
+	num_input_programs_2 := C.cl_uint(num_input_programs_1)
+	input_programs_2 := (*C.cl_program)(input_programs_1)
 	var callback_uid unsafe.Pointer
 	var callback *[0]byte
 	if pfn_notify != nil {
 		callback_uid = unsafe.Pointer(uintptr(callbackRegister(pfn_notify)))
 		callback = (*[0]byte)(C.go_cl_callback_clLinkProgram)
 	}
-	res := C.clLinkProgram(context_1, dlen, dptr, options_1, num_input_programs_1, input_programs_1, callback, callback_uid, &errCode)
-	err := makeError(ErrorCode(errCode))
+	res := C.clLinkProgram(context_1, num_devices_2, device_list_2, options_1, num_input_programs_2, input_programs_2, callback, callback_uid, &errcode_ret_1)
 	res_1 := Program(res)
-	err_1 := err
-	return res_1, err_1
+	return res_1, makeError(ErrorCode(errcode_ret_1))
 }
 //export go_cl_callback_clSetProgramReleaseCallback
 func go_cl_callback_clSetProgramReleaseCallback(program C.cl_program, user_data *C.void) {
@@ -2336,7 +2255,7 @@ func go_cl_callback_clSetProgramReleaseCallback(program C.cl_program, user_data 
 	(callbackFn(uid).(func(program Program)))(program_1)
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clSetProgramReleaseCallback.html
-func SetProgramReleaseCallback(program Program, pfn_notify func(program Program)) (_ error) {
+func SetProgramReleaseCallback(program Program, pfn_notify func(program Program)) (_err error) {
 	program_1 := C.cl_program(program)
 	var callback_uid unsafe.Pointer
 	var callback *[0]byte
@@ -2345,43 +2264,35 @@ func SetProgramReleaseCallback(program Program, pfn_notify func(program Program)
 		callback = (*[0]byte)(C.go_cl_callback_clSetProgramReleaseCallback)
 	}
 	res := C.clSetProgramReleaseCallback(program_1, callback, callback_uid)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clSetProgramSpecializationConstant.html
-func SetProgramSpecializationConstant(program Program, spec_id uint32, spec_size uint64, spec_value unsafe.Pointer) (_ error) {
+func SetProgramSpecializationConstant(program Program, spec_id uint32, spec_size uint64, spec_value unsafe.Pointer) (_err error) {
 	program_1 := C.cl_program(program)
 	spec_id_1 := C.cl_uint(spec_id)
 	spec_size_1 := C.size_t(spec_size)
 	spec_value_1 := spec_value
 	res := C.clSetProgramSpecializationConstant(program_1, spec_id_1, spec_size_1, spec_value_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clUnloadPlatformCompiler.html
-func UnloadPlatformCompiler(platform PlatformId) (_ error) {
+func UnloadPlatformCompiler(platform PlatformId) (_err error) {
 	platform_1 := C.cl_platform_id(platform)
 	res := C.clUnloadPlatformCompiler(platform_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetProgramInfo.html
-func GetProgramInfo(program Program, param_name ProgramInfo, param_value_size uint64, param_value unsafe.Pointer, param_value_size_ret *uint64) (_ error) {
+func GetProgramInfo(program Program, param_name ProgramInfo, param_value_size uint64, param_value unsafe.Pointer, param_value_size_ret *uint64) (_err error) {
 	program_1 := C.cl_program(program)
 	param_name_1 := C.cl_program_info(param_name)
 	param_value_size_1 := C.size_t(param_value_size)
 	param_value_1 := param_value
 	param_value_size_ret_1 := (*C.size_t)(param_value_size_ret)
 	res := C.clGetProgramInfo(program_1, param_name_1, param_value_size_1, param_value_1, param_value_size_ret_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetProgramBuildInfo.html
-func GetProgramBuildInfo(program Program, device DeviceId, param_name ProgramBuildInfo, param_value_size uint64, param_value unsafe.Pointer, param_value_size_ret *uint64) (_ error) {
+func GetProgramBuildInfo(program Program, device DeviceId, param_name ProgramBuildInfo, param_value_size uint64, param_value unsafe.Pointer, param_value_size_ret *uint64) (_err error) {
 	program_1 := C.cl_program(program)
 	device_1 := C.cl_device_id(device)
 	param_name_1 := C.cl_program_build_info(param_name)
@@ -2389,105 +2300,87 @@ func GetProgramBuildInfo(program Program, device DeviceId, param_name ProgramBui
 	param_value_1 := param_value
 	param_value_size_ret_1 := (*C.size_t)(param_value_size_ret)
 	res := C.clGetProgramBuildInfo(program_1, device_1, param_name_1, param_value_size_1, param_value_1, param_value_size_ret_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateKernel.html
-func CreateKernel(program Program, kernel_name string) (_ Kernel, _ error) {
-	dptr, dfin := stringToC(kernel_name)
-	defer dfin()
-	var errCode C.cl_int
+func CreateKernel(program Program, kernel_name string) (_res Kernel, _errcode_ret error) {
+	kernel_name_1, kernel_name_1_fin := stringToC(kernel_name)
+	defer kernel_name_1_fin()
+	var errcode_ret_1 C.cl_int
 	program_1 := C.cl_program(program)
-	res := C.clCreateKernel(program_1, dptr, &errCode)
-	err := makeError(ErrorCode(errCode))
+	res := C.clCreateKernel(program_1, kernel_name_1, &errcode_ret_1)
 	res_1 := Kernel(res)
-	err_1 := err
-	return res_1, err_1
+	return res_1, makeError(ErrorCode(errcode_ret_1))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateKernelsInProgram.html
-func CreateKernelsInProgram(program Program, num_kernels uint32, kernels *Kernel, num_kernels_ret *uint32) (_ error) {
+func CreateKernelsInProgram(program Program) (_kernels []Kernel, _err error) {
 	program_1 := C.cl_program(program)
-	num_kernels_1 := C.cl_uint(num_kernels)
-	kernels_1 := (*C.cl_kernel)(kernels)
-	num_kernels_ret_1 := (*C.cl_uint)(num_kernels_ret)
-	res := C.clCreateKernelsInProgram(program_1, num_kernels_1, kernels_1, num_kernels_ret_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	var kernels_actual_len C.cl_uint
+	C.clCreateKernelsInProgram(program_1, 0, nil, &kernels_actual_len)
+	kernels_1 := make([]Kernel, kernels_actual_len)
+	kernels, num_kernels, kernels_fin := sliceToC(kernels_1)
+	defer kernels_fin()
+	res := C.clCreateKernelsInProgram(program_1, C.cl_uint(num_kernels), (*C.cl_kernel)(kernels), nil)
+	return kernels_1, makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCloneKernel.html
-func CloneKernel(source_kernel Kernel) (_ Kernel, _ error) {
-	var errCode C.cl_int
+func CloneKernel(source_kernel Kernel) (_res Kernel, _errcode_ret error) {
+	var errcode_ret_1 C.cl_int
 	source_kernel_1 := C.cl_kernel(source_kernel)
-	res := C.clCloneKernel(source_kernel_1, &errCode)
-	err := makeError(ErrorCode(errCode))
+	res := C.clCloneKernel(source_kernel_1, &errcode_ret_1)
 	res_1 := Kernel(res)
-	err_1 := err
-	return res_1, err_1
+	return res_1, makeError(ErrorCode(errcode_ret_1))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clRetainKernel.html
-func RetainKernel(kernel Kernel) (_ error) {
+func RetainKernel(kernel Kernel) (_err error) {
 	kernel_1 := C.cl_kernel(kernel)
 	res := C.clRetainKernel(kernel_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clReleaseKernel.html
-func ReleaseKernel(kernel Kernel) (_ error) {
+func ReleaseKernel(kernel Kernel) (_err error) {
 	kernel_1 := C.cl_kernel(kernel)
 	res := C.clReleaseKernel(kernel_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clSetKernelArg.html
-func SetKernelArg(kernel Kernel, arg_index uint32, arg_size uint64, arg_value unsafe.Pointer) (_ error) {
+func SetKernelArg(kernel Kernel, arg_index uint32, arg_size uint64, arg_value unsafe.Pointer) (_err error) {
 	kernel_1 := C.cl_kernel(kernel)
 	arg_index_1 := C.cl_uint(arg_index)
 	arg_size_1 := C.size_t(arg_size)
 	arg_value_1 := arg_value
 	res := C.clSetKernelArg(kernel_1, arg_index_1, arg_size_1, arg_value_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clSetKernelArgSVMPointer.html
-func SetKernelArgSVMPointer(kernel Kernel, arg_index uint32, arg_value unsafe.Pointer) (_ error) {
+func SetKernelArgSVMPointer(kernel Kernel, arg_index uint32, arg_value unsafe.Pointer) (_err error) {
 	kernel_1 := C.cl_kernel(kernel)
 	arg_index_1 := C.cl_uint(arg_index)
 	arg_value_1 := arg_value
 	res := C.clSetKernelArgSVMPointer(kernel_1, arg_index_1, arg_value_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clSetKernelExecInfo.html
-func SetKernelExecInfo(kernel Kernel, param_name KernelExecInfo, param_value_size uint64, param_value unsafe.Pointer) (_ error) {
+func SetKernelExecInfo(kernel Kernel, param_name KernelExecInfo, param_value_size uint64, param_value unsafe.Pointer) (_err error) {
 	kernel_1 := C.cl_kernel(kernel)
 	param_name_1 := C.cl_kernel_exec_info(param_name)
 	param_value_size_1 := C.size_t(param_value_size)
 	param_value_1 := param_value
 	res := C.clSetKernelExecInfo(kernel_1, param_name_1, param_value_size_1, param_value_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetKernelInfo.html
-func GetKernelInfo(kernel Kernel, param_name KernelInfo, param_value_size uint64, param_value unsafe.Pointer, param_value_size_ret *uint64) (_ error) {
+func GetKernelInfo(kernel Kernel, param_name KernelInfo, param_value_size uint64, param_value unsafe.Pointer, param_value_size_ret *uint64) (_err error) {
 	kernel_1 := C.cl_kernel(kernel)
 	param_name_1 := C.cl_kernel_info(param_name)
 	param_value_size_1 := C.size_t(param_value_size)
 	param_value_1 := param_value
 	param_value_size_ret_1 := (*C.size_t)(param_value_size_ret)
 	res := C.clGetKernelInfo(kernel_1, param_name_1, param_value_size_1, param_value_1, param_value_size_ret_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetKernelArgInfo.html
-func GetKernelArgInfo(kernel Kernel, arg_indx uint32, param_name KernelArgInfo, param_value_size uint64, param_value unsafe.Pointer, param_value_size_ret *uint64) (_ error) {
+func GetKernelArgInfo(kernel Kernel, arg_indx uint32, param_name KernelArgInfo, param_value_size uint64, param_value unsafe.Pointer, param_value_size_ret *uint64) (_err error) {
 	kernel_1 := C.cl_kernel(kernel)
 	arg_indx_1 := C.cl_uint(arg_indx)
 	param_name_1 := C.cl_kernel_arg_info(param_name)
@@ -2495,12 +2388,10 @@ func GetKernelArgInfo(kernel Kernel, arg_indx uint32, param_name KernelArgInfo, 
 	param_value_1 := param_value
 	param_value_size_ret_1 := (*C.size_t)(param_value_size_ret)
 	res := C.clGetKernelArgInfo(kernel_1, arg_indx_1, param_name_1, param_value_size_1, param_value_1, param_value_size_ret_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetKernelWorkGroupInfo.html
-func GetKernelWorkGroupInfo(kernel Kernel, device DeviceId, param_name KernelWorkGroupInfo, param_value_size uint64, param_value unsafe.Pointer, param_value_size_ret *uint64) (_ error) {
+func GetKernelWorkGroupInfo(kernel Kernel, device DeviceId, param_name KernelWorkGroupInfo, param_value_size uint64, param_value unsafe.Pointer, param_value_size_ret *uint64) (_err error) {
 	kernel_1 := C.cl_kernel(kernel)
 	device_1 := C.cl_device_id(device)
 	param_name_1 := C.cl_kernel_work_group_info(param_name)
@@ -2508,12 +2399,10 @@ func GetKernelWorkGroupInfo(kernel Kernel, device DeviceId, param_name KernelWor
 	param_value_1 := param_value
 	param_value_size_ret_1 := (*C.size_t)(param_value_size_ret)
 	res := C.clGetKernelWorkGroupInfo(kernel_1, device_1, param_name_1, param_value_size_1, param_value_1, param_value_size_ret_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetKernelSubGroupInfo.html
-func GetKernelSubGroupInfo(kernel Kernel, device DeviceId, param_name KernelSubGroupInfo, input_value_size uint64, input_value unsafe.Pointer, param_value_size uint64, param_value unsafe.Pointer, param_value_size_ret *uint64) (_ error) {
+func GetKernelSubGroupInfo(kernel Kernel, device DeviceId, param_name KernelSubGroupInfo, input_value_size uint64, input_value unsafe.Pointer, param_value_size uint64, param_value unsafe.Pointer, param_value_size_ret *uint64) (_err error) {
 	kernel_1 := C.cl_kernel(kernel)
 	device_1 := C.cl_device_id(device)
 	param_name_1 := C.cl_kernel_sub_group_info(param_name)
@@ -2523,69 +2412,53 @@ func GetKernelSubGroupInfo(kernel Kernel, device DeviceId, param_name KernelSubG
 	param_value_1 := param_value
 	param_value_size_ret_1 := (*C.size_t)(param_value_size_ret)
 	res := C.clGetKernelSubGroupInfo(kernel_1, device_1, param_name_1, input_value_size_1, input_value_1, param_value_size_1, param_value_1, param_value_size_ret_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clWaitForEvents.html
-func WaitForEvents(event_list []Event) (_ error) {
-	dlen := C.cl_uint(len(event_list))
-	var dptr *C.cl_event
-	if len(event_list) > 0 {
-		dptr = (*C.cl_event)(unsafe.Pointer(&event_list[0]))
-	}
-	defer runtime.KeepAlive(event_list)
-	res := C.clWaitForEvents(dlen, dptr)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+func WaitForEvents(event_list []Event) (_err error) {
+	event_list_1, num_events_1, event_list_1_fin := sliceToC(event_list)
+	defer event_list_1_fin()
+	num_events_2 := C.cl_uint(num_events_1)
+	event_list_2 := (*C.cl_event)(event_list_1)
+	res := C.clWaitForEvents(num_events_2, event_list_2)
+	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetEventInfo.html
-func GetEventInfo(event Event, param_name EventInfo, param_value_size uint64, param_value unsafe.Pointer, param_value_size_ret *uint64) (_ error) {
+func GetEventInfo(event Event, param_name EventInfo, param_value_size uint64, param_value unsafe.Pointer, param_value_size_ret *uint64) (_err error) {
 	event_1 := C.cl_event(event)
 	param_name_1 := C.cl_event_info(param_name)
 	param_value_size_1 := C.size_t(param_value_size)
 	param_value_1 := param_value
 	param_value_size_ret_1 := (*C.size_t)(param_value_size_ret)
 	res := C.clGetEventInfo(event_1, param_name_1, param_value_size_1, param_value_1, param_value_size_ret_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateUserEvent.html
-func CreateUserEvent(context Context) (_ Event, _ error) {
-	var errCode C.cl_int
+func CreateUserEvent(context Context) (_res Event, _errcode_ret error) {
+	var errcode_ret_1 C.cl_int
 	context_1 := C.cl_context(context)
-	res := C.clCreateUserEvent(context_1, &errCode)
-	err := makeError(ErrorCode(errCode))
+	res := C.clCreateUserEvent(context_1, &errcode_ret_1)
 	res_1 := Event(res)
-	err_1 := err
-	return res_1, err_1
+	return res_1, makeError(ErrorCode(errcode_ret_1))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clRetainEvent.html
-func RetainEvent(event Event) (_ error) {
+func RetainEvent(event Event) (_err error) {
 	event_1 := C.cl_event(event)
 	res := C.clRetainEvent(event_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clReleaseEvent.html
-func ReleaseEvent(event Event) (_ error) {
+func ReleaseEvent(event Event) (_err error) {
 	event_1 := C.cl_event(event)
 	res := C.clReleaseEvent(event_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clSetUserEventStatus.html
-func SetUserEventStatus(event Event, execution_status int32) (_ error) {
+func SetUserEventStatus(event Event, execution_status int32) (_err error) {
 	event_1 := C.cl_event(event)
 	execution_status_1 := C.cl_int(execution_status)
 	res := C.clSetUserEventStatus(event_1, execution_status_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	return makeError(ErrorCode(res))
 }
 //export go_cl_callback_clSetEventCallback
 func go_cl_callback_clSetEventCallback(event C.cl_event, event_command_status C.cl_int, user_data *C.void) {
@@ -2596,7 +2469,7 @@ func go_cl_callback_clSetEventCallback(event C.cl_event, event_command_status C.
 	(callbackFn(uid).(func(event Event, event_command_status int32)))(event_1, event_command_status_1)
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clSetEventCallback.html
-func SetEventCallback(event Event, command_exec_callback_type int32, pfn_notify func(event Event, event_command_status int32)) (_ error) {
+func SetEventCallback(event Event, command_exec_callback_type int32, pfn_notify func(event Event, event_command_status int32)) (_err error) {
 	event_1 := C.cl_event(event)
 	command_exec_callback_type_1 := C.cl_int(command_exec_callback_type)
 	var callback_uid unsafe.Pointer
@@ -2606,66 +2479,50 @@ func SetEventCallback(event Event, command_exec_callback_type int32, pfn_notify 
 		callback = (*[0]byte)(C.go_cl_callback_clSetEventCallback)
 	}
 	res := C.clSetEventCallback(event_1, command_exec_callback_type_1, callback, callback_uid)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetEventProfilingInfo.html
-func GetEventProfilingInfo(event Event, param_name ProfilingInfo, param_value_size uint64, param_value unsafe.Pointer, param_value_size_ret *uint64) (_ error) {
+func GetEventProfilingInfo(event Event, param_name ProfilingInfo, param_value_size uint64, param_value unsafe.Pointer, param_value_size_ret *uint64) (_err error) {
 	event_1 := C.cl_event(event)
 	param_name_1 := C.cl_profiling_info(param_name)
 	param_value_size_1 := C.size_t(param_value_size)
 	param_value_1 := param_value
 	param_value_size_ret_1 := (*C.size_t)(param_value_size_ret)
 	res := C.clGetEventProfilingInfo(event_1, param_name_1, param_value_size_1, param_value_1, param_value_size_ret_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clFlush.html
-func Flush(command_queue CommandQueue) (_ error) {
+func Flush(command_queue CommandQueue) (_err error) {
 	command_queue_1 := C.cl_command_queue(command_queue)
 	res := C.clFlush(command_queue_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clFinish.html
-func Finish(command_queue CommandQueue) (_ error) {
+func Finish(command_queue CommandQueue) (_err error) {
 	command_queue_1 := C.cl_command_queue(command_queue)
 	res := C.clFinish(command_queue_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueReadBuffer.html
-func EnqueueReadBuffer(command_queue CommandQueue, buffer Mem, blocking_read bool, offset uint64, size uint64, ptr unsafe.Pointer, event_wait_list []Event, event *Event) (_ error) {
-	dlen := C.cl_uint(len(event_wait_list))
-	var dptr *C.cl_event
-	if len(event_wait_list) > 0 {
-		dptr = (*C.cl_event)(unsafe.Pointer(&event_wait_list[0]))
-	}
-	defer runtime.KeepAlive(event_wait_list)
+func EnqueueReadBuffer(command_queue CommandQueue, buffer Mem, blocking_read bool, offset uint64, size uint64, ptr unsafe.Pointer, event_wait_list []Event, event *Event) (_err error) {
+	event_wait_list_1, num_events_in_wait_list_1, event_wait_list_1_fin := sliceToC(event_wait_list)
+	defer event_wait_list_1_fin()
 	command_queue_1 := C.cl_command_queue(command_queue)
 	buffer_1 := C.cl_mem(buffer)
 	blocking_read_1 := boolToClBool(blocking_read)
 	offset_1 := C.size_t(offset)
 	size_1 := C.size_t(size)
 	ptr_1 := ptr
+	num_events_in_wait_list_2 := C.cl_uint(num_events_in_wait_list_1)
+	event_wait_list_2 := (*C.cl_event)(event_wait_list_1)
 	event_1 := (*C.cl_event)(event)
-	res := C.clEnqueueReadBuffer(command_queue_1, buffer_1, blocking_read_1, offset_1, size_1, ptr_1, dlen, dptr, event_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	res := C.clEnqueueReadBuffer(command_queue_1, buffer_1, blocking_read_1, offset_1, size_1, ptr_1, num_events_in_wait_list_2, event_wait_list_2, event_1)
+	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueReadBufferRect.html
-func EnqueueReadBufferRect(command_queue CommandQueue, buffer Mem, blocking_read bool, buffer_origin *uint64, host_origin *uint64, region *uint64, buffer_row_pitch uint64, buffer_slice_pitch uint64, host_row_pitch uint64, host_slice_pitch uint64, ptr unsafe.Pointer, event_wait_list []Event, event *Event) (_ error) {
-	dlen := C.cl_uint(len(event_wait_list))
-	var dptr *C.cl_event
-	if len(event_wait_list) > 0 {
-		dptr = (*C.cl_event)(unsafe.Pointer(&event_wait_list[0]))
-	}
-	defer runtime.KeepAlive(event_wait_list)
+func EnqueueReadBufferRect(command_queue CommandQueue, buffer Mem, blocking_read bool, buffer_origin *uint64, host_origin *uint64, region *uint64, buffer_row_pitch uint64, buffer_slice_pitch uint64, host_row_pitch uint64, host_slice_pitch uint64, ptr unsafe.Pointer, event_wait_list []Event, event *Event) (_err error) {
+	event_wait_list_1, num_events_in_wait_list_1, event_wait_list_1_fin := sliceToC(event_wait_list)
+	defer event_wait_list_1_fin()
 	command_queue_1 := C.cl_command_queue(command_queue)
 	buffer_1 := C.cl_mem(buffer)
 	blocking_read_1 := boolToClBool(blocking_read)
@@ -2677,40 +2534,32 @@ func EnqueueReadBufferRect(command_queue CommandQueue, buffer Mem, blocking_read
 	host_row_pitch_1 := C.size_t(host_row_pitch)
 	host_slice_pitch_1 := C.size_t(host_slice_pitch)
 	ptr_1 := ptr
+	num_events_in_wait_list_2 := C.cl_uint(num_events_in_wait_list_1)
+	event_wait_list_2 := (*C.cl_event)(event_wait_list_1)
 	event_1 := (*C.cl_event)(event)
-	res := C.clEnqueueReadBufferRect(command_queue_1, buffer_1, blocking_read_1, buffer_origin_1, host_origin_1, region_1, buffer_row_pitch_1, buffer_slice_pitch_1, host_row_pitch_1, host_slice_pitch_1, ptr_1, dlen, dptr, event_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	res := C.clEnqueueReadBufferRect(command_queue_1, buffer_1, blocking_read_1, buffer_origin_1, host_origin_1, region_1, buffer_row_pitch_1, buffer_slice_pitch_1, host_row_pitch_1, host_slice_pitch_1, ptr_1, num_events_in_wait_list_2, event_wait_list_2, event_1)
+	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueWriteBuffer.html
-func EnqueueWriteBuffer(command_queue CommandQueue, buffer Mem, blocking_write bool, offset uint64, size uint64, ptr unsafe.Pointer, event_wait_list []Event, event *Event) (_ error) {
-	dlen := C.cl_uint(len(event_wait_list))
-	var dptr *C.cl_event
-	if len(event_wait_list) > 0 {
-		dptr = (*C.cl_event)(unsafe.Pointer(&event_wait_list[0]))
-	}
-	defer runtime.KeepAlive(event_wait_list)
+func EnqueueWriteBuffer(command_queue CommandQueue, buffer Mem, blocking_write bool, offset uint64, size uint64, ptr unsafe.Pointer, event_wait_list []Event, event *Event) (_err error) {
+	event_wait_list_1, num_events_in_wait_list_1, event_wait_list_1_fin := sliceToC(event_wait_list)
+	defer event_wait_list_1_fin()
 	command_queue_1 := C.cl_command_queue(command_queue)
 	buffer_1 := C.cl_mem(buffer)
 	blocking_write_1 := boolToClBool(blocking_write)
 	offset_1 := C.size_t(offset)
 	size_1 := C.size_t(size)
 	ptr_1 := ptr
+	num_events_in_wait_list_2 := C.cl_uint(num_events_in_wait_list_1)
+	event_wait_list_2 := (*C.cl_event)(event_wait_list_1)
 	event_1 := (*C.cl_event)(event)
-	res := C.clEnqueueWriteBuffer(command_queue_1, buffer_1, blocking_write_1, offset_1, size_1, ptr_1, dlen, dptr, event_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	res := C.clEnqueueWriteBuffer(command_queue_1, buffer_1, blocking_write_1, offset_1, size_1, ptr_1, num_events_in_wait_list_2, event_wait_list_2, event_1)
+	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueWriteBufferRect.html
-func EnqueueWriteBufferRect(command_queue CommandQueue, buffer Mem, blocking_write bool, buffer_origin *uint64, host_origin *uint64, region *uint64, buffer_row_pitch uint64, buffer_slice_pitch uint64, host_row_pitch uint64, host_slice_pitch uint64, ptr unsafe.Pointer, event_wait_list []Event, event *Event) (_ error) {
-	dlen := C.cl_uint(len(event_wait_list))
-	var dptr *C.cl_event
-	if len(event_wait_list) > 0 {
-		dptr = (*C.cl_event)(unsafe.Pointer(&event_wait_list[0]))
-	}
-	defer runtime.KeepAlive(event_wait_list)
+func EnqueueWriteBufferRect(command_queue CommandQueue, buffer Mem, blocking_write bool, buffer_origin *uint64, host_origin *uint64, region *uint64, buffer_row_pitch uint64, buffer_slice_pitch uint64, host_row_pitch uint64, host_slice_pitch uint64, ptr unsafe.Pointer, event_wait_list []Event, event *Event) (_err error) {
+	event_wait_list_1, num_events_in_wait_list_1, event_wait_list_1_fin := sliceToC(event_wait_list)
+	defer event_wait_list_1_fin()
 	command_queue_1 := C.cl_command_queue(command_queue)
 	buffer_1 := C.cl_mem(buffer)
 	blocking_write_1 := boolToClBool(blocking_write)
@@ -2722,60 +2571,48 @@ func EnqueueWriteBufferRect(command_queue CommandQueue, buffer Mem, blocking_wri
 	host_row_pitch_1 := C.size_t(host_row_pitch)
 	host_slice_pitch_1 := C.size_t(host_slice_pitch)
 	ptr_1 := ptr
+	num_events_in_wait_list_2 := C.cl_uint(num_events_in_wait_list_1)
+	event_wait_list_2 := (*C.cl_event)(event_wait_list_1)
 	event_1 := (*C.cl_event)(event)
-	res := C.clEnqueueWriteBufferRect(command_queue_1, buffer_1, blocking_write_1, buffer_origin_1, host_origin_1, region_1, buffer_row_pitch_1, buffer_slice_pitch_1, host_row_pitch_1, host_slice_pitch_1, ptr_1, dlen, dptr, event_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	res := C.clEnqueueWriteBufferRect(command_queue_1, buffer_1, blocking_write_1, buffer_origin_1, host_origin_1, region_1, buffer_row_pitch_1, buffer_slice_pitch_1, host_row_pitch_1, host_slice_pitch_1, ptr_1, num_events_in_wait_list_2, event_wait_list_2, event_1)
+	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueFillBuffer.html
-func EnqueueFillBuffer(command_queue CommandQueue, buffer Mem, pattern unsafe.Pointer, pattern_size uint64, offset uint64, size uint64, event_wait_list []Event, event *Event) (_ error) {
-	dlen := C.cl_uint(len(event_wait_list))
-	var dptr *C.cl_event
-	if len(event_wait_list) > 0 {
-		dptr = (*C.cl_event)(unsafe.Pointer(&event_wait_list[0]))
-	}
-	defer runtime.KeepAlive(event_wait_list)
+func EnqueueFillBuffer(command_queue CommandQueue, buffer Mem, pattern unsafe.Pointer, pattern_size uint64, offset uint64, size uint64, event_wait_list []Event, event *Event) (_err error) {
+	event_wait_list_1, num_events_in_wait_list_1, event_wait_list_1_fin := sliceToC(event_wait_list)
+	defer event_wait_list_1_fin()
 	command_queue_1 := C.cl_command_queue(command_queue)
 	buffer_1 := C.cl_mem(buffer)
 	pattern_1 := pattern
 	pattern_size_1 := C.size_t(pattern_size)
 	offset_1 := C.size_t(offset)
 	size_1 := C.size_t(size)
+	num_events_in_wait_list_2 := C.cl_uint(num_events_in_wait_list_1)
+	event_wait_list_2 := (*C.cl_event)(event_wait_list_1)
 	event_1 := (*C.cl_event)(event)
-	res := C.clEnqueueFillBuffer(command_queue_1, buffer_1, pattern_1, pattern_size_1, offset_1, size_1, dlen, dptr, event_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	res := C.clEnqueueFillBuffer(command_queue_1, buffer_1, pattern_1, pattern_size_1, offset_1, size_1, num_events_in_wait_list_2, event_wait_list_2, event_1)
+	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueCopyBuffer.html
-func EnqueueCopyBuffer(command_queue CommandQueue, src_buffer Mem, dst_buffer Mem, src_offset uint64, dst_offset uint64, size uint64, event_wait_list []Event, event *Event) (_ error) {
-	dlen := C.cl_uint(len(event_wait_list))
-	var dptr *C.cl_event
-	if len(event_wait_list) > 0 {
-		dptr = (*C.cl_event)(unsafe.Pointer(&event_wait_list[0]))
-	}
-	defer runtime.KeepAlive(event_wait_list)
+func EnqueueCopyBuffer(command_queue CommandQueue, src_buffer Mem, dst_buffer Mem, src_offset uint64, dst_offset uint64, size uint64, event_wait_list []Event, event *Event) (_err error) {
+	event_wait_list_1, num_events_in_wait_list_1, event_wait_list_1_fin := sliceToC(event_wait_list)
+	defer event_wait_list_1_fin()
 	command_queue_1 := C.cl_command_queue(command_queue)
 	src_buffer_1 := C.cl_mem(src_buffer)
 	dst_buffer_1 := C.cl_mem(dst_buffer)
 	src_offset_1 := C.size_t(src_offset)
 	dst_offset_1 := C.size_t(dst_offset)
 	size_1 := C.size_t(size)
+	num_events_in_wait_list_2 := C.cl_uint(num_events_in_wait_list_1)
+	event_wait_list_2 := (*C.cl_event)(event_wait_list_1)
 	event_1 := (*C.cl_event)(event)
-	res := C.clEnqueueCopyBuffer(command_queue_1, src_buffer_1, dst_buffer_1, src_offset_1, dst_offset_1, size_1, dlen, dptr, event_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	res := C.clEnqueueCopyBuffer(command_queue_1, src_buffer_1, dst_buffer_1, src_offset_1, dst_offset_1, size_1, num_events_in_wait_list_2, event_wait_list_2, event_1)
+	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueCopyBufferRect.html
-func EnqueueCopyBufferRect(command_queue CommandQueue, src_buffer Mem, dst_buffer Mem, src_origin *uint64, dst_origin *uint64, region *uint64, src_row_pitch uint64, src_slice_pitch uint64, dst_row_pitch uint64, dst_slice_pitch uint64, event_wait_list []Event, event *Event) (_ error) {
-	dlen := C.cl_uint(len(event_wait_list))
-	var dptr *C.cl_event
-	if len(event_wait_list) > 0 {
-		dptr = (*C.cl_event)(unsafe.Pointer(&event_wait_list[0]))
-	}
-	defer runtime.KeepAlive(event_wait_list)
+func EnqueueCopyBufferRect(command_queue CommandQueue, src_buffer Mem, dst_buffer Mem, src_origin *uint64, dst_origin *uint64, region *uint64, src_row_pitch uint64, src_slice_pitch uint64, dst_row_pitch uint64, dst_slice_pitch uint64, event_wait_list []Event, event *Event) (_err error) {
+	event_wait_list_1, num_events_in_wait_list_1, event_wait_list_1_fin := sliceToC(event_wait_list)
+	defer event_wait_list_1_fin()
 	command_queue_1 := C.cl_command_queue(command_queue)
 	src_buffer_1 := C.cl_mem(src_buffer)
 	dst_buffer_1 := C.cl_mem(dst_buffer)
@@ -2786,20 +2623,16 @@ func EnqueueCopyBufferRect(command_queue CommandQueue, src_buffer Mem, dst_buffe
 	src_slice_pitch_1 := C.size_t(src_slice_pitch)
 	dst_row_pitch_1 := C.size_t(dst_row_pitch)
 	dst_slice_pitch_1 := C.size_t(dst_slice_pitch)
+	num_events_in_wait_list_2 := C.cl_uint(num_events_in_wait_list_1)
+	event_wait_list_2 := (*C.cl_event)(event_wait_list_1)
 	event_1 := (*C.cl_event)(event)
-	res := C.clEnqueueCopyBufferRect(command_queue_1, src_buffer_1, dst_buffer_1, src_origin_1, dst_origin_1, region_1, src_row_pitch_1, src_slice_pitch_1, dst_row_pitch_1, dst_slice_pitch_1, dlen, dptr, event_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	res := C.clEnqueueCopyBufferRect(command_queue_1, src_buffer_1, dst_buffer_1, src_origin_1, dst_origin_1, region_1, src_row_pitch_1, src_slice_pitch_1, dst_row_pitch_1, dst_slice_pitch_1, num_events_in_wait_list_2, event_wait_list_2, event_1)
+	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueReadImage.html
-func EnqueueReadImage(command_queue CommandQueue, image Mem, blocking_read bool, origin *uint64, region *uint64, row_pitch uint64, slice_pitch uint64, ptr unsafe.Pointer, event_wait_list []Event, event *Event) (_ error) {
-	dlen := C.cl_uint(len(event_wait_list))
-	var dptr *C.cl_event
-	if len(event_wait_list) > 0 {
-		dptr = (*C.cl_event)(unsafe.Pointer(&event_wait_list[0]))
-	}
-	defer runtime.KeepAlive(event_wait_list)
+func EnqueueReadImage(command_queue CommandQueue, image Mem, blocking_read bool, origin *uint64, region *uint64, row_pitch uint64, slice_pitch uint64, ptr unsafe.Pointer, event_wait_list []Event, event *Event) (_err error) {
+	event_wait_list_1, num_events_in_wait_list_1, event_wait_list_1_fin := sliceToC(event_wait_list)
+	defer event_wait_list_1_fin()
 	command_queue_1 := C.cl_command_queue(command_queue)
 	image_1 := C.cl_mem(image)
 	blocking_read_1 := boolToClBool(blocking_read)
@@ -2808,20 +2641,16 @@ func EnqueueReadImage(command_queue CommandQueue, image Mem, blocking_read bool,
 	row_pitch_1 := C.size_t(row_pitch)
 	slice_pitch_1 := C.size_t(slice_pitch)
 	ptr_1 := ptr
+	num_events_in_wait_list_2 := C.cl_uint(num_events_in_wait_list_1)
+	event_wait_list_2 := (*C.cl_event)(event_wait_list_1)
 	event_1 := (*C.cl_event)(event)
-	res := C.clEnqueueReadImage(command_queue_1, image_1, blocking_read_1, origin_1, region_1, row_pitch_1, slice_pitch_1, ptr_1, dlen, dptr, event_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	res := C.clEnqueueReadImage(command_queue_1, image_1, blocking_read_1, origin_1, region_1, row_pitch_1, slice_pitch_1, ptr_1, num_events_in_wait_list_2, event_wait_list_2, event_1)
+	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueWriteImage.html
-func EnqueueWriteImage(command_queue CommandQueue, image Mem, blocking_write bool, origin *uint64, region *uint64, input_row_pitch uint64, input_slice_pitch uint64, ptr unsafe.Pointer, event_wait_list []Event, event *Event) (_ error) {
-	dlen := C.cl_uint(len(event_wait_list))
-	var dptr *C.cl_event
-	if len(event_wait_list) > 0 {
-		dptr = (*C.cl_event)(unsafe.Pointer(&event_wait_list[0]))
-	}
-	defer runtime.KeepAlive(event_wait_list)
+func EnqueueWriteImage(command_queue CommandQueue, image Mem, blocking_write bool, origin *uint64, region *uint64, input_row_pitch uint64, input_slice_pitch uint64, ptr unsafe.Pointer, event_wait_list []Event, event *Event) (_err error) {
+	event_wait_list_1, num_events_in_wait_list_1, event_wait_list_1_fin := sliceToC(event_wait_list)
+	defer event_wait_list_1_fin()
 	command_queue_1 := C.cl_command_queue(command_queue)
 	image_1 := C.cl_mem(image)
 	blocking_write_1 := boolToClBool(blocking_write)
@@ -2830,113 +2659,98 @@ func EnqueueWriteImage(command_queue CommandQueue, image Mem, blocking_write boo
 	input_row_pitch_1 := C.size_t(input_row_pitch)
 	input_slice_pitch_1 := C.size_t(input_slice_pitch)
 	ptr_1 := ptr
+	num_events_in_wait_list_2 := C.cl_uint(num_events_in_wait_list_1)
+	event_wait_list_2 := (*C.cl_event)(event_wait_list_1)
 	event_1 := (*C.cl_event)(event)
-	res := C.clEnqueueWriteImage(command_queue_1, image_1, blocking_write_1, origin_1, region_1, input_row_pitch_1, input_slice_pitch_1, ptr_1, dlen, dptr, event_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	res := C.clEnqueueWriteImage(command_queue_1, image_1, blocking_write_1, origin_1, region_1, input_row_pitch_1, input_slice_pitch_1, ptr_1, num_events_in_wait_list_2, event_wait_list_2, event_1)
+	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueFillImage.html
-func EnqueueFillImage(command_queue CommandQueue, image Mem, fill_color unsafe.Pointer, origin *uint64, region *uint64, event_wait_list []Event, event *Event) (_ error) {
-	dlen := C.cl_uint(len(event_wait_list))
-	var dptr *C.cl_event
-	if len(event_wait_list) > 0 {
-		dptr = (*C.cl_event)(unsafe.Pointer(&event_wait_list[0]))
-	}
-	defer runtime.KeepAlive(event_wait_list)
+func EnqueueFillImage(command_queue CommandQueue, image Mem, fill_color unsafe.Pointer, origin *uint64, region *uint64, event_wait_list []Event, event *Event) (_err error) {
+	event_wait_list_1, num_events_in_wait_list_1, event_wait_list_1_fin := sliceToC(event_wait_list)
+	defer event_wait_list_1_fin()
 	command_queue_1 := C.cl_command_queue(command_queue)
 	image_1 := C.cl_mem(image)
 	fill_color_1 := fill_color
 	origin_1 := (*C.size_t)(origin)
 	region_1 := (*C.size_t)(region)
+	num_events_in_wait_list_2 := C.cl_uint(num_events_in_wait_list_1)
+	event_wait_list_2 := (*C.cl_event)(event_wait_list_1)
 	event_1 := (*C.cl_event)(event)
-	res := C.clEnqueueFillImage(command_queue_1, image_1, fill_color_1, origin_1, region_1, dlen, dptr, event_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	res := C.clEnqueueFillImage(command_queue_1, image_1, fill_color_1, origin_1, region_1, num_events_in_wait_list_2, event_wait_list_2, event_1)
+	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueCopyImage.html
-func EnqueueCopyImage(command_queue CommandQueue, src_image Mem, dst_image Mem, src_origin *uint64, dst_origin *uint64, region *uint64, event_wait_list []Event, event *Event) (_ error) {
-	dlen := C.cl_uint(len(event_wait_list))
-	var dptr *C.cl_event
-	if len(event_wait_list) > 0 {
-		dptr = (*C.cl_event)(unsafe.Pointer(&event_wait_list[0]))
-	}
-	defer runtime.KeepAlive(event_wait_list)
+func EnqueueCopyImage(command_queue CommandQueue, src_image Mem, dst_image Mem, src_origin *uint64, dst_origin *uint64, region *uint64, event_wait_list []Event, event *Event) (_err error) {
+	event_wait_list_1, num_events_in_wait_list_1, event_wait_list_1_fin := sliceToC(event_wait_list)
+	defer event_wait_list_1_fin()
 	command_queue_1 := C.cl_command_queue(command_queue)
 	src_image_1 := C.cl_mem(src_image)
 	dst_image_1 := C.cl_mem(dst_image)
 	src_origin_1 := (*C.size_t)(src_origin)
 	dst_origin_1 := (*C.size_t)(dst_origin)
 	region_1 := (*C.size_t)(region)
+	num_events_in_wait_list_2 := C.cl_uint(num_events_in_wait_list_1)
+	event_wait_list_2 := (*C.cl_event)(event_wait_list_1)
 	event_1 := (*C.cl_event)(event)
-	res := C.clEnqueueCopyImage(command_queue_1, src_image_1, dst_image_1, src_origin_1, dst_origin_1, region_1, dlen, dptr, event_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	res := C.clEnqueueCopyImage(command_queue_1, src_image_1, dst_image_1, src_origin_1, dst_origin_1, region_1, num_events_in_wait_list_2, event_wait_list_2, event_1)
+	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueCopyImageToBuffer.html
-func EnqueueCopyImageToBuffer(command_queue CommandQueue, src_image Mem, dst_buffer Mem, src_origin *uint64, region *uint64, dst_offset uint64, event_wait_list []Event, event *Event) (_ error) {
-	dlen := C.cl_uint(len(event_wait_list))
-	var dptr *C.cl_event
-	if len(event_wait_list) > 0 {
-		dptr = (*C.cl_event)(unsafe.Pointer(&event_wait_list[0]))
-	}
-	defer runtime.KeepAlive(event_wait_list)
+func EnqueueCopyImageToBuffer(command_queue CommandQueue, src_image Mem, dst_buffer Mem, src_origin *uint64, region *uint64, dst_offset uint64, event_wait_list []Event, event *Event) (_err error) {
+	event_wait_list_1, num_events_in_wait_list_1, event_wait_list_1_fin := sliceToC(event_wait_list)
+	defer event_wait_list_1_fin()
 	command_queue_1 := C.cl_command_queue(command_queue)
 	src_image_1 := C.cl_mem(src_image)
 	dst_buffer_1 := C.cl_mem(dst_buffer)
 	src_origin_1 := (*C.size_t)(src_origin)
 	region_1 := (*C.size_t)(region)
 	dst_offset_1 := C.size_t(dst_offset)
+	num_events_in_wait_list_2 := C.cl_uint(num_events_in_wait_list_1)
+	event_wait_list_2 := (*C.cl_event)(event_wait_list_1)
 	event_1 := (*C.cl_event)(event)
-	res := C.clEnqueueCopyImageToBuffer(command_queue_1, src_image_1, dst_buffer_1, src_origin_1, region_1, dst_offset_1, dlen, dptr, event_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	res := C.clEnqueueCopyImageToBuffer(command_queue_1, src_image_1, dst_buffer_1, src_origin_1, region_1, dst_offset_1, num_events_in_wait_list_2, event_wait_list_2, event_1)
+	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueCopyBufferToImage.html
-func EnqueueCopyBufferToImage(command_queue CommandQueue, src_buffer Mem, dst_image Mem, src_offset uint64, dst_origin *uint64, region *uint64, num_events_in_wait_list uint32, event_wait_list *Event, event *Event) (_ error) {
+func EnqueueCopyBufferToImage(command_queue CommandQueue, src_buffer Mem, dst_image Mem, src_offset uint64, dst_origin *uint64, region *uint64, event_wait_list []Event, event *Event) (_err error) {
+	event_wait_list_1, num_events_in_wait_list_1, event_wait_list_1_fin := sliceToC(event_wait_list)
+	defer event_wait_list_1_fin()
 	command_queue_1 := C.cl_command_queue(command_queue)
 	src_buffer_1 := C.cl_mem(src_buffer)
 	dst_image_1 := C.cl_mem(dst_image)
 	src_offset_1 := C.size_t(src_offset)
 	dst_origin_1 := (*C.size_t)(dst_origin)
 	region_1 := (*C.size_t)(region)
-	num_events_in_wait_list_1 := C.cl_uint(num_events_in_wait_list)
-	event_wait_list_1 := (*C.cl_event)(event_wait_list)
+	num_events_in_wait_list_2 := C.cl_uint(num_events_in_wait_list_1)
+	event_wait_list_2 := (*C.cl_event)(event_wait_list_1)
 	event_1 := (*C.cl_event)(event)
-	res := C.clEnqueueCopyBufferToImage(command_queue_1, src_buffer_1, dst_image_1, src_offset_1, dst_origin_1, region_1, num_events_in_wait_list_1, event_wait_list_1, event_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	res := C.clEnqueueCopyBufferToImage(command_queue_1, src_buffer_1, dst_image_1, src_offset_1, dst_origin_1, region_1, num_events_in_wait_list_2, event_wait_list_2, event_1)
+	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueMapBuffer.html
-func EnqueueMapBuffer(command_queue CommandQueue, buffer Mem, blocking_map bool, map_flags MapFlags, offset uint64, size uint64, num_events_in_wait_list uint32, event_wait_list *Event, event *Event) (_ error) {
-	var errCode C.cl_int
+func EnqueueMapBuffer(command_queue CommandQueue, buffer Mem, blocking_map bool, map_flags MapFlags, offset uint64, size uint64, event_wait_list []Event, event *Event) (_res unsafe.Pointer, _errcode_ret error) {
+	event_wait_list_1, num_events_in_wait_list_1, event_wait_list_1_fin := sliceToC(event_wait_list)
+	defer event_wait_list_1_fin()
+	var errcode_ret_1 C.cl_int
 	command_queue_1 := C.cl_command_queue(command_queue)
 	buffer_1 := C.cl_mem(buffer)
 	blocking_map_1 := boolToClBool(blocking_map)
 	map_flags_1 := C.cl_map_flags(map_flags)
 	offset_1 := C.size_t(offset)
 	size_1 := C.size_t(size)
-	num_events_in_wait_list_1 := C.cl_uint(num_events_in_wait_list)
-	event_wait_list_1 := (*C.cl_event)(event_wait_list)
+	num_events_in_wait_list_2 := C.cl_uint(num_events_in_wait_list_1)
+	event_wait_list_2 := (*C.cl_event)(event_wait_list_1)
 	event_1 := (*C.cl_event)(event)
-	C.clEnqueueMapBuffer(command_queue_1, buffer_1, blocking_map_1, map_flags_1, offset_1, size_1, num_events_in_wait_list_1, event_wait_list_1, event_1, &errCode)
-	err := makeError(ErrorCode(errCode))
-	err_1 := err
-	return err_1
+	res := C.clEnqueueMapBuffer(command_queue_1, buffer_1, blocking_map_1, map_flags_1, offset_1, size_1, num_events_in_wait_list_2, event_wait_list_2, event_1, &errcode_ret_1)
+	res_1 := (unsafe.Pointer)(res)
+	return res_1, makeError(ErrorCode(errcode_ret_1))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueMapImage.html
-func EnqueueMapImage(command_queue CommandQueue, image Mem, blocking_map bool, map_flags MapFlags, origin *uint64, region *uint64, image_row_pitch *uint64, image_slice_pitch *uint64, event_wait_list []Event, event *Event) (_ error) {
-	dlen := C.cl_uint(len(event_wait_list))
-	var dptr *C.cl_event
-	if len(event_wait_list) > 0 {
-		dptr = (*C.cl_event)(unsafe.Pointer(&event_wait_list[0]))
-	}
-	defer runtime.KeepAlive(event_wait_list)
-	var errCode C.cl_int
+func EnqueueMapImage(command_queue CommandQueue, image Mem, blocking_map bool, map_flags MapFlags, origin *uint64, region *uint64, image_row_pitch *uint64, image_slice_pitch *uint64, event_wait_list []Event, event *Event) (_res unsafe.Pointer, _errcode_ret error) {
+	event_wait_list_1, num_events_in_wait_list_1, event_wait_list_1_fin := sliceToC(event_wait_list)
+	defer event_wait_list_1_fin()
+	var errcode_ret_1 C.cl_int
 	command_queue_1 := C.cl_command_queue(command_queue)
 	image_1 := C.cl_mem(image)
 	blocking_map_1 := boolToClBool(blocking_map)
@@ -2945,96 +2759,77 @@ func EnqueueMapImage(command_queue CommandQueue, image Mem, blocking_map bool, m
 	region_1 := (*C.size_t)(region)
 	image_row_pitch_1 := (*C.size_t)(image_row_pitch)
 	image_slice_pitch_1 := (*C.size_t)(image_slice_pitch)
+	num_events_in_wait_list_2 := C.cl_uint(num_events_in_wait_list_1)
+	event_wait_list_2 := (*C.cl_event)(event_wait_list_1)
 	event_1 := (*C.cl_event)(event)
-	C.clEnqueueMapImage(command_queue_1, image_1, blocking_map_1, map_flags_1, origin_1, region_1, image_row_pitch_1, image_slice_pitch_1, dlen, dptr, event_1, &errCode)
-	err := makeError(ErrorCode(errCode))
-	err_1 := err
-	return err_1
+	res := C.clEnqueueMapImage(command_queue_1, image_1, blocking_map_1, map_flags_1, origin_1, region_1, image_row_pitch_1, image_slice_pitch_1, num_events_in_wait_list_2, event_wait_list_2, event_1, &errcode_ret_1)
+	res_1 := (unsafe.Pointer)(res)
+	return res_1, makeError(ErrorCode(errcode_ret_1))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueUnmapMemObject.html
-func EnqueueUnmapMemObject(command_queue CommandQueue, memobj Mem, mapped_ptr unsafe.Pointer, event_wait_list []Event, event *Event) (_ error) {
-	dlen := C.cl_uint(len(event_wait_list))
-	var dptr *C.cl_event
-	if len(event_wait_list) > 0 {
-		dptr = (*C.cl_event)(unsafe.Pointer(&event_wait_list[0]))
-	}
-	defer runtime.KeepAlive(event_wait_list)
+func EnqueueUnmapMemObject(command_queue CommandQueue, memobj Mem, mapped_ptr unsafe.Pointer, event_wait_list []Event, event *Event) (_err error) {
+	event_wait_list_1, num_events_in_wait_list_1, event_wait_list_1_fin := sliceToC(event_wait_list)
+	defer event_wait_list_1_fin()
 	command_queue_1 := C.cl_command_queue(command_queue)
 	memobj_1 := C.cl_mem(memobj)
 	mapped_ptr_1 := mapped_ptr
+	num_events_in_wait_list_2 := C.cl_uint(num_events_in_wait_list_1)
+	event_wait_list_2 := (*C.cl_event)(event_wait_list_1)
 	event_1 := (*C.cl_event)(event)
-	res := C.clEnqueueUnmapMemObject(command_queue_1, memobj_1, mapped_ptr_1, dlen, dptr, event_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	res := C.clEnqueueUnmapMemObject(command_queue_1, memobj_1, mapped_ptr_1, num_events_in_wait_list_2, event_wait_list_2, event_1)
+	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueMigrateMemObjects.html
-func EnqueueMigrateMemObjects(command_queue CommandQueue, num_mem_objects uint32, mem_objects *Mem, flags MemMigrationFlags, event_wait_list []Event, event *Event) (_ error) {
-	dlen := C.cl_uint(len(event_wait_list))
-	var dptr *C.cl_event
-	if len(event_wait_list) > 0 {
-		dptr = (*C.cl_event)(unsafe.Pointer(&event_wait_list[0]))
-	}
-	defer runtime.KeepAlive(event_wait_list)
+func EnqueueMigrateMemObjects(command_queue CommandQueue, num_mem_objects uint32, mem_objects *Mem, flags MemMigrationFlags, event_wait_list []Event, event *Event) (_err error) {
+	event_wait_list_1, num_events_in_wait_list_1, event_wait_list_1_fin := sliceToC(event_wait_list)
+	defer event_wait_list_1_fin()
 	command_queue_1 := C.cl_command_queue(command_queue)
 	num_mem_objects_1 := C.cl_uint(num_mem_objects)
 	mem_objects_1 := (*C.cl_mem)(mem_objects)
 	flags_1 := C.cl_mem_migration_flags(flags)
+	num_events_in_wait_list_2 := C.cl_uint(num_events_in_wait_list_1)
+	event_wait_list_2 := (*C.cl_event)(event_wait_list_1)
 	event_1 := (*C.cl_event)(event)
-	res := C.clEnqueueMigrateMemObjects(command_queue_1, num_mem_objects_1, mem_objects_1, flags_1, dlen, dptr, event_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	res := C.clEnqueueMigrateMemObjects(command_queue_1, num_mem_objects_1, mem_objects_1, flags_1, num_events_in_wait_list_2, event_wait_list_2, event_1)
+	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueNDRangeKernel.html
-func EnqueueNDRangeKernel(command_queue CommandQueue, kernel Kernel, work_dim uint32, global_work_offset *uint64, global_work_size *uint64, local_work_size *uint64, event_wait_list []Event, event *Event) (_ error) {
-	dlen := C.cl_uint(len(event_wait_list))
-	var dptr *C.cl_event
-	if len(event_wait_list) > 0 {
-		dptr = (*C.cl_event)(unsafe.Pointer(&event_wait_list[0]))
-	}
-	defer runtime.KeepAlive(event_wait_list)
+func EnqueueNDRangeKernel(command_queue CommandQueue, kernel Kernel, work_dim uint32, global_work_offset *uint64, global_work_size *uint64, local_work_size *uint64, event_wait_list []Event, event *Event) (_err error) {
+	event_wait_list_1, num_events_in_wait_list_1, event_wait_list_1_fin := sliceToC(event_wait_list)
+	defer event_wait_list_1_fin()
 	command_queue_1 := C.cl_command_queue(command_queue)
 	kernel_1 := C.cl_kernel(kernel)
 	work_dim_1 := C.cl_uint(work_dim)
 	global_work_offset_1 := (*C.size_t)(global_work_offset)
 	global_work_size_1 := (*C.size_t)(global_work_size)
 	local_work_size_1 := (*C.size_t)(local_work_size)
+	num_events_in_wait_list_2 := C.cl_uint(num_events_in_wait_list_1)
+	event_wait_list_2 := (*C.cl_event)(event_wait_list_1)
 	event_1 := (*C.cl_event)(event)
-	res := C.clEnqueueNDRangeKernel(command_queue_1, kernel_1, work_dim_1, global_work_offset_1, global_work_size_1, local_work_size_1, dlen, dptr, event_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	res := C.clEnqueueNDRangeKernel(command_queue_1, kernel_1, work_dim_1, global_work_offset_1, global_work_size_1, local_work_size_1, num_events_in_wait_list_2, event_wait_list_2, event_1)
+	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueMarkerWithWaitList.html
-func EnqueueMarkerWithWaitList(command_queue CommandQueue, event_wait_list []Event, event *Event) (_ error) {
-	dlen := C.cl_uint(len(event_wait_list))
-	var dptr *C.cl_event
-	if len(event_wait_list) > 0 {
-		dptr = (*C.cl_event)(unsafe.Pointer(&event_wait_list[0]))
-	}
-	defer runtime.KeepAlive(event_wait_list)
+func EnqueueMarkerWithWaitList(command_queue CommandQueue, event_wait_list []Event, event *Event) (_err error) {
+	event_wait_list_1, num_events_in_wait_list_1, event_wait_list_1_fin := sliceToC(event_wait_list)
+	defer event_wait_list_1_fin()
 	command_queue_1 := C.cl_command_queue(command_queue)
+	num_events_in_wait_list_2 := C.cl_uint(num_events_in_wait_list_1)
+	event_wait_list_2 := (*C.cl_event)(event_wait_list_1)
 	event_1 := (*C.cl_event)(event)
-	res := C.clEnqueueMarkerWithWaitList(command_queue_1, dlen, dptr, event_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	res := C.clEnqueueMarkerWithWaitList(command_queue_1, num_events_in_wait_list_2, event_wait_list_2, event_1)
+	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueBarrierWithWaitList.html
-func EnqueueBarrierWithWaitList(command_queue CommandQueue, event_wait_list []Event, event *Event) (_ error) {
-	dlen := C.cl_uint(len(event_wait_list))
-	var dptr *C.cl_event
-	if len(event_wait_list) > 0 {
-		dptr = (*C.cl_event)(unsafe.Pointer(&event_wait_list[0]))
-	}
-	defer runtime.KeepAlive(event_wait_list)
+func EnqueueBarrierWithWaitList(command_queue CommandQueue, event_wait_list []Event, event *Event) (_err error) {
+	event_wait_list_1, num_events_in_wait_list_1, event_wait_list_1_fin := sliceToC(event_wait_list)
+	defer event_wait_list_1_fin()
 	command_queue_1 := C.cl_command_queue(command_queue)
+	num_events_in_wait_list_2 := C.cl_uint(num_events_in_wait_list_1)
+	event_wait_list_2 := (*C.cl_event)(event_wait_list_1)
 	event_1 := (*C.cl_event)(event)
-	res := C.clEnqueueBarrierWithWaitList(command_queue_1, dlen, dptr, event_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	res := C.clEnqueueBarrierWithWaitList(command_queue_1, num_events_in_wait_list_2, event_wait_list_2, event_1)
+	return makeError(ErrorCode(res))
 }
 //export go_cl_callback_clEnqueueSVMFree
 func go_cl_callback_clEnqueueSVMFree(queue C.cl_command_queue, num_svm_pointers C.cl_uint, svm_pointers **C.void, user_data *C.void) {
@@ -3046,13 +2841,9 @@ func go_cl_callback_clEnqueueSVMFree(queue C.cl_command_queue, num_svm_pointers 
 	(callbackFn(uid).(func(queue CommandQueue, num_svm_pointers uint32, svm_pointers unsafe.Pointer)))(queue_1, num_svm_pointers_1, svm_pointers_1)
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueSVMFree.html
-func EnqueueSVMFree(command_queue CommandQueue, num_svm_pointers uint32, svm_pointers unsafe.Pointer, pfn_free_func func(queue CommandQueue, num_svm_pointers uint32, svm_pointers unsafe.Pointer), event_wait_list []Event, event *Event) (_ error) {
-	dlen := C.cl_uint(len(event_wait_list))
-	var dptr *C.cl_event
-	if len(event_wait_list) > 0 {
-		dptr = (*C.cl_event)(unsafe.Pointer(&event_wait_list[0]))
-	}
-	defer runtime.KeepAlive(event_wait_list)
+func EnqueueSVMFree(command_queue CommandQueue, num_svm_pointers uint32, svm_pointers unsafe.Pointer, pfn_free_func func(queue CommandQueue, num_svm_pointers uint32, svm_pointers unsafe.Pointer), event_wait_list []Event, event *Event) (_err error) {
+	event_wait_list_1, num_events_in_wait_list_1, event_wait_list_1_fin := sliceToC(event_wait_list)
+	defer event_wait_list_1_fin()
 	command_queue_1 := C.cl_command_queue(command_queue)
 	num_svm_pointers_1 := C.cl_uint(num_svm_pointers)
 	svm_pointers_1 := (*unsafe.Pointer)(svm_pointers)
@@ -3062,106 +2853,86 @@ func EnqueueSVMFree(command_queue CommandQueue, num_svm_pointers uint32, svm_poi
 		callback_uid = unsafe.Pointer(uintptr(callbackRegister(pfn_free_func)))
 		callback = (*[0]byte)(C.go_cl_callback_clEnqueueSVMFree)
 	}
+	num_events_in_wait_list_2 := C.cl_uint(num_events_in_wait_list_1)
+	event_wait_list_2 := (*C.cl_event)(event_wait_list_1)
 	event_1 := (*C.cl_event)(event)
-	res := C.clEnqueueSVMFree(command_queue_1, num_svm_pointers_1, svm_pointers_1, callback, callback_uid, dlen, dptr, event_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	res := C.clEnqueueSVMFree(command_queue_1, num_svm_pointers_1, svm_pointers_1, callback, callback_uid, num_events_in_wait_list_2, event_wait_list_2, event_1)
+	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueSVMMemcpy.html
-func EnqueueSVMMemcpy(command_queue CommandQueue, blocking_copy bool, dst_ptr unsafe.Pointer, src_ptr unsafe.Pointer, size uint64, event_wait_list []Event, event *Event) (_ error) {
-	dlen := C.cl_uint(len(event_wait_list))
-	var dptr *C.cl_event
-	if len(event_wait_list) > 0 {
-		dptr = (*C.cl_event)(unsafe.Pointer(&event_wait_list[0]))
-	}
-	defer runtime.KeepAlive(event_wait_list)
+func EnqueueSVMMemcpy(command_queue CommandQueue, blocking_copy bool, dst_ptr unsafe.Pointer, src_ptr unsafe.Pointer, size uint64, event_wait_list []Event, event *Event) (_err error) {
+	event_wait_list_1, num_events_in_wait_list_1, event_wait_list_1_fin := sliceToC(event_wait_list)
+	defer event_wait_list_1_fin()
 	command_queue_1 := C.cl_command_queue(command_queue)
 	blocking_copy_1 := boolToClBool(blocking_copy)
 	dst_ptr_1 := dst_ptr
 	src_ptr_1 := src_ptr
 	size_1 := C.size_t(size)
+	num_events_in_wait_list_2 := C.cl_uint(num_events_in_wait_list_1)
+	event_wait_list_2 := (*C.cl_event)(event_wait_list_1)
 	event_1 := (*C.cl_event)(event)
-	res := C.clEnqueueSVMMemcpy(command_queue_1, blocking_copy_1, dst_ptr_1, src_ptr_1, size_1, dlen, dptr, event_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	res := C.clEnqueueSVMMemcpy(command_queue_1, blocking_copy_1, dst_ptr_1, src_ptr_1, size_1, num_events_in_wait_list_2, event_wait_list_2, event_1)
+	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueSVMMemFill.html
-func EnqueueSVMMemFill(command_queue CommandQueue, svm_ptr unsafe.Pointer, pattern unsafe.Pointer, pattern_size uint64, size uint64, event_wait_list []Event, event *Event) (_ error) {
-	dlen := C.cl_uint(len(event_wait_list))
-	var dptr *C.cl_event
-	if len(event_wait_list) > 0 {
-		dptr = (*C.cl_event)(unsafe.Pointer(&event_wait_list[0]))
-	}
-	defer runtime.KeepAlive(event_wait_list)
+func EnqueueSVMMemFill(command_queue CommandQueue, svm_ptr unsafe.Pointer, pattern unsafe.Pointer, pattern_size uint64, size uint64, event_wait_list []Event, event *Event) (_err error) {
+	event_wait_list_1, num_events_in_wait_list_1, event_wait_list_1_fin := sliceToC(event_wait_list)
+	defer event_wait_list_1_fin()
 	command_queue_1 := C.cl_command_queue(command_queue)
 	svm_ptr_1 := svm_ptr
 	pattern_1 := pattern
 	pattern_size_1 := C.size_t(pattern_size)
 	size_1 := C.size_t(size)
+	num_events_in_wait_list_2 := C.cl_uint(num_events_in_wait_list_1)
+	event_wait_list_2 := (*C.cl_event)(event_wait_list_1)
 	event_1 := (*C.cl_event)(event)
-	res := C.clEnqueueSVMMemFill(command_queue_1, svm_ptr_1, pattern_1, pattern_size_1, size_1, dlen, dptr, event_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	res := C.clEnqueueSVMMemFill(command_queue_1, svm_ptr_1, pattern_1, pattern_size_1, size_1, num_events_in_wait_list_2, event_wait_list_2, event_1)
+	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueSVMMap.html
-func EnqueueSVMMap(command_queue CommandQueue, blocking_map bool, flags MapFlags, svm_ptr unsafe.Pointer, size uint64, event_wait_list []Event, event *Event) (_ error) {
-	dlen := C.cl_uint(len(event_wait_list))
-	var dptr *C.cl_event
-	if len(event_wait_list) > 0 {
-		dptr = (*C.cl_event)(unsafe.Pointer(&event_wait_list[0]))
-	}
-	defer runtime.KeepAlive(event_wait_list)
+func EnqueueSVMMap(command_queue CommandQueue, blocking_map bool, flags MapFlags, svm_ptr unsafe.Pointer, size uint64, event_wait_list []Event, event *Event) (_err error) {
+	event_wait_list_1, num_events_in_wait_list_1, event_wait_list_1_fin := sliceToC(event_wait_list)
+	defer event_wait_list_1_fin()
 	command_queue_1 := C.cl_command_queue(command_queue)
 	blocking_map_1 := boolToClBool(blocking_map)
 	flags_1 := C.cl_map_flags(flags)
 	svm_ptr_1 := svm_ptr
 	size_1 := C.size_t(size)
+	num_events_in_wait_list_2 := C.cl_uint(num_events_in_wait_list_1)
+	event_wait_list_2 := (*C.cl_event)(event_wait_list_1)
 	event_1 := (*C.cl_event)(event)
-	res := C.clEnqueueSVMMap(command_queue_1, blocking_map_1, flags_1, svm_ptr_1, size_1, dlen, dptr, event_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	res := C.clEnqueueSVMMap(command_queue_1, blocking_map_1, flags_1, svm_ptr_1, size_1, num_events_in_wait_list_2, event_wait_list_2, event_1)
+	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueSVMUnmap.html
-func EnqueueSVMUnmap(command_queue CommandQueue, svm_ptr unsafe.Pointer, event_wait_list []Event, event *Event) (_ error) {
-	dlen := C.cl_uint(len(event_wait_list))
-	var dptr *C.cl_event
-	if len(event_wait_list) > 0 {
-		dptr = (*C.cl_event)(unsafe.Pointer(&event_wait_list[0]))
-	}
-	defer runtime.KeepAlive(event_wait_list)
+func EnqueueSVMUnmap(command_queue CommandQueue, svm_ptr unsafe.Pointer, event_wait_list []Event, event *Event) (_err error) {
+	event_wait_list_1, num_events_in_wait_list_1, event_wait_list_1_fin := sliceToC(event_wait_list)
+	defer event_wait_list_1_fin()
 	command_queue_1 := C.cl_command_queue(command_queue)
 	svm_ptr_1 := svm_ptr
+	num_events_in_wait_list_2 := C.cl_uint(num_events_in_wait_list_1)
+	event_wait_list_2 := (*C.cl_event)(event_wait_list_1)
 	event_1 := (*C.cl_event)(event)
-	res := C.clEnqueueSVMUnmap(command_queue_1, svm_ptr_1, dlen, dptr, event_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	res := C.clEnqueueSVMUnmap(command_queue_1, svm_ptr_1, num_events_in_wait_list_2, event_wait_list_2, event_1)
+	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueSVMMigrateMem.html
-func EnqueueSVMMigrateMem(command_queue CommandQueue, num_svm_pointers uint32, svm_pointers unsafe.Pointer, sizes *uint64, flags MemMigrationFlags, event_wait_list []Event, event *Event) (_ error) {
-	dlen := C.cl_uint(len(event_wait_list))
-	var dptr *C.cl_event
-	if len(event_wait_list) > 0 {
-		dptr = (*C.cl_event)(unsafe.Pointer(&event_wait_list[0]))
-	}
-	defer runtime.KeepAlive(event_wait_list)
+func EnqueueSVMMigrateMem(command_queue CommandQueue, num_svm_pointers uint32, svm_pointers unsafe.Pointer, sizes *uint64, flags MemMigrationFlags, event_wait_list []Event, event *Event) (_err error) {
+	event_wait_list_1, num_events_in_wait_list_1, event_wait_list_1_fin := sliceToC(event_wait_list)
+	defer event_wait_list_1_fin()
 	command_queue_1 := C.cl_command_queue(command_queue)
 	num_svm_pointers_1 := C.cl_uint(num_svm_pointers)
 	svm_pointers_1 := (*unsafe.Pointer)(svm_pointers)
 	sizes_1 := (*C.size_t)(sizes)
 	flags_1 := C.cl_mem_migration_flags(flags)
+	num_events_in_wait_list_2 := C.cl_uint(num_events_in_wait_list_1)
+	event_wait_list_2 := (*C.cl_event)(event_wait_list_1)
 	event_1 := (*C.cl_event)(event)
-	res := C.clEnqueueSVMMigrateMem(command_queue_1, num_svm_pointers_1, svm_pointers_1, sizes_1, flags_1, dlen, dptr, event_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	res := C.clEnqueueSVMMigrateMem(command_queue_1, num_svm_pointers_1, svm_pointers_1, sizes_1, flags_1, num_events_in_wait_list_2, event_wait_list_2, event_1)
+	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetKernelSuggestedLocalWorkSize.html
-func GetKernelSuggestedLocalWorkSize(command_queue CommandQueue, kernel Kernel, work_dim uint32, global_work_offset *uint64, global_work_size *uint64, suggested_local_work_size *uint64) (_ error) {
+func GetKernelSuggestedLocalWorkSize(command_queue CommandQueue, kernel Kernel, work_dim uint32, global_work_offset *uint64, global_work_size *uint64, suggested_local_work_size *uint64) (_err error) {
 	command_queue_1 := C.cl_command_queue(command_queue)
 	kernel_1 := C.cl_kernel(kernel)
 	work_dim_1 := C.cl_uint(work_dim)
@@ -3169,19 +2940,20 @@ func GetKernelSuggestedLocalWorkSize(command_queue CommandQueue, kernel Kernel, 
 	global_work_size_1 := (*C.size_t)(global_work_size)
 	suggested_local_work_size_1 := (*C.size_t)(suggested_local_work_size)
 	res := C.clGetKernelSuggestedLocalWorkSize(command_queue_1, kernel_1, work_dim_1, global_work_offset_1, global_work_size_1, suggested_local_work_size_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetExtensionFunctionAddressForPlatform.html
-func GetExtensionFunctionAddressForPlatform(platform PlatformId, func_name *int8) {
+func GetExtensionFunctionAddressForPlatform(platform PlatformId, func_name string) (_res unsafe.Pointer) {
+	func_name_1, func_name_1_fin := stringToC(func_name)
+	defer func_name_1_fin()
 	platform_1 := C.cl_platform_id(platform)
-	func_name_1 := (*C.char)(func_name)
-	C.clGetExtensionFunctionAddressForPlatform(platform_1, func_name_1)
+	res := C.clGetExtensionFunctionAddressForPlatform(platform_1, func_name_1)
+	res_1 := (unsafe.Pointer)(res)
+	return res_1
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateImage2D.html
-func CreateImage2D(context Context, flags MemFlags, image_format *ImageFormat, image_width uint64, image_height uint64, image_row_pitch uint64, host_ptr unsafe.Pointer) (_ Mem, _ error) {
-	var errCode C.cl_int
+func CreateImage2D(context Context, flags MemFlags, image_format *ImageFormat, image_width uint64, image_height uint64, image_row_pitch uint64, host_ptr unsafe.Pointer) (_res Mem, _errcode_ret error) {
+	var errcode_ret_1 C.cl_int
 	context_1 := C.cl_context(context)
 	flags_1 := C.cl_mem_flags(flags)
 	image_format_1 := (*C.cl_image_format)(image_format)
@@ -3189,15 +2961,13 @@ func CreateImage2D(context Context, flags MemFlags, image_format *ImageFormat, i
 	image_height_1 := C.size_t(image_height)
 	image_row_pitch_1 := C.size_t(image_row_pitch)
 	host_ptr_1 := host_ptr
-	res := C.clCreateImage2D(context_1, flags_1, image_format_1, image_width_1, image_height_1, image_row_pitch_1, host_ptr_1, &errCode)
-	err := makeError(ErrorCode(errCode))
+	res := C.clCreateImage2D(context_1, flags_1, image_format_1, image_width_1, image_height_1, image_row_pitch_1, host_ptr_1, &errcode_ret_1)
 	res_1 := Mem(res)
-	err_1 := err
-	return res_1, err_1
+	return res_1, makeError(ErrorCode(errcode_ret_1))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateImage3D.html
-func CreateImage3D(context Context, flags MemFlags, image_format *ImageFormat, image_width uint64, image_height uint64, image_depth uint64, image_row_pitch uint64, image_slice_pitch uint64, host_ptr unsafe.Pointer) (_ Mem, _ error) {
-	var errCode C.cl_int
+func CreateImage3D(context Context, flags MemFlags, image_format *ImageFormat, image_width uint64, image_height uint64, image_depth uint64, image_row_pitch uint64, image_slice_pitch uint64, host_ptr unsafe.Pointer) (_res Mem, _errcode_ret error) {
+	var errcode_ret_1 C.cl_int
 	context_1 := C.cl_context(context)
 	flags_1 := C.cl_mem_flags(flags)
 	image_format_1 := (*C.cl_image_format)(image_format)
@@ -3207,91 +2977,78 @@ func CreateImage3D(context Context, flags MemFlags, image_format *ImageFormat, i
 	image_row_pitch_1 := C.size_t(image_row_pitch)
 	image_slice_pitch_1 := C.size_t(image_slice_pitch)
 	host_ptr_1 := host_ptr
-	res := C.clCreateImage3D(context_1, flags_1, image_format_1, image_width_1, image_height_1, image_depth_1, image_row_pitch_1, image_slice_pitch_1, host_ptr_1, &errCode)
-	err := makeError(ErrorCode(errCode))
+	res := C.clCreateImage3D(context_1, flags_1, image_format_1, image_width_1, image_height_1, image_depth_1, image_row_pitch_1, image_slice_pitch_1, host_ptr_1, &errcode_ret_1)
 	res_1 := Mem(res)
-	err_1 := err
-	return res_1, err_1
+	return res_1, makeError(ErrorCode(errcode_ret_1))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueMarker.html
-func EnqueueMarker(command_queue CommandQueue, event *Event) (_ error) {
+func EnqueueMarker(command_queue CommandQueue, event *Event) (_err error) {
 	command_queue_1 := C.cl_command_queue(command_queue)
 	event_1 := (*C.cl_event)(event)
 	res := C.clEnqueueMarker(command_queue_1, event_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueWaitForEvents.html
-func EnqueueWaitForEvents(command_queue CommandQueue, num_events uint32, event_list *Event) (_ error) {
+func EnqueueWaitForEvents(command_queue CommandQueue, event_list []Event) (_err error) {
+	event_list_1, num_events_1, event_list_1_fin := sliceToC(event_list)
+	defer event_list_1_fin()
 	command_queue_1 := C.cl_command_queue(command_queue)
-	num_events_1 := C.cl_uint(num_events)
-	event_list_1 := (*C.cl_event)(event_list)
-	res := C.clEnqueueWaitForEvents(command_queue_1, num_events_1, event_list_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	num_events_2 := C.cl_uint(num_events_1)
+	event_list_2 := (*C.cl_event)(event_list_1)
+	res := C.clEnqueueWaitForEvents(command_queue_1, num_events_2, event_list_2)
+	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueBarrier.html
-func EnqueueBarrier(command_queue CommandQueue) (_ error) {
+func EnqueueBarrier(command_queue CommandQueue) (_err error) {
 	command_queue_1 := C.cl_command_queue(command_queue)
 	res := C.clEnqueueBarrier(command_queue_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clUnloadCompiler.html
-func UnloadCompiler() (_ error) {
+func UnloadCompiler() (_err error) {
 	res := C.clUnloadCompiler()
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetExtensionFunctionAddress.html
-func GetExtensionFunctionAddress(func_name *int8) {
-	func_name_1 := (*C.char)(func_name)
-	C.clGetExtensionFunctionAddress(func_name_1)
+func GetExtensionFunctionAddress(func_name string) (_res unsafe.Pointer) {
+	func_name_1, func_name_1_fin := stringToC(func_name)
+	defer func_name_1_fin()
+	res := C.clGetExtensionFunctionAddress(func_name_1)
+	res_1 := (unsafe.Pointer)(res)
+	return res_1
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateCommandQueue.html
-func CreateCommandQueue(context Context, device DeviceId, properties CommandQueueProperties) (_ CommandQueue, _ error) {
-	var errCode C.cl_int
+func CreateCommandQueue(context Context, device DeviceId, properties CommandQueueProperties) (_res CommandQueue, _errcode_ret error) {
+	var errcode_ret_1 C.cl_int
 	context_1 := C.cl_context(context)
 	device_1 := C.cl_device_id(device)
 	properties_1 := C.cl_command_queue_properties(properties)
-	res := C.clCreateCommandQueue(context_1, device_1, properties_1, &errCode)
-	err := makeError(ErrorCode(errCode))
+	res := C.clCreateCommandQueue(context_1, device_1, properties_1, &errcode_ret_1)
 	res_1 := CommandQueue(res)
-	err_1 := err
-	return res_1, err_1
+	return res_1, makeError(ErrorCode(errcode_ret_1))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateSampler.html
-func CreateSampler(context Context, normalized_coords bool, addressing_mode AddressingMode, filter_mode FilterMode) (_ Sampler, _ error) {
-	var errCode C.cl_int
+func CreateSampler(context Context, normalized_coords bool, addressing_mode AddressingMode, filter_mode FilterMode) (_res Sampler, _errcode_ret error) {
+	var errcode_ret_1 C.cl_int
 	context_1 := C.cl_context(context)
 	normalized_coords_1 := boolToClBool(normalized_coords)
 	addressing_mode_1 := C.cl_addressing_mode(addressing_mode)
 	filter_mode_1 := C.cl_filter_mode(filter_mode)
-	res := C.clCreateSampler(context_1, normalized_coords_1, addressing_mode_1, filter_mode_1, &errCode)
-	err := makeError(ErrorCode(errCode))
+	res := C.clCreateSampler(context_1, normalized_coords_1, addressing_mode_1, filter_mode_1, &errcode_ret_1)
 	res_1 := Sampler(res)
-	err_1 := err
-	return res_1, err_1
+	return res_1, makeError(ErrorCode(errcode_ret_1))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueTask.html
-func EnqueueTask(command_queue CommandQueue, kernel Kernel, event_wait_list []Event, event *Event) (_ error) {
-	dlen := C.cl_uint(len(event_wait_list))
-	var dptr *C.cl_event
-	if len(event_wait_list) > 0 {
-		dptr = (*C.cl_event)(unsafe.Pointer(&event_wait_list[0]))
-	}
-	defer runtime.KeepAlive(event_wait_list)
+func EnqueueTask(command_queue CommandQueue, kernel Kernel, event_wait_list []Event, event *Event) (_err error) {
+	event_wait_list_1, num_events_in_wait_list_1, event_wait_list_1_fin := sliceToC(event_wait_list)
+	defer event_wait_list_1_fin()
 	command_queue_1 := C.cl_command_queue(command_queue)
 	kernel_1 := C.cl_kernel(kernel)
+	num_events_in_wait_list_2 := C.cl_uint(num_events_in_wait_list_1)
+	event_wait_list_2 := (*C.cl_event)(event_wait_list_1)
 	event_1 := (*C.cl_event)(event)
-	res := C.clEnqueueTask(command_queue_1, kernel_1, dlen, dptr, event_1)
-	err := makeError(ErrorCode(res))
-	err_1 := err
-	return err_1
+	res := C.clEnqueueTask(command_queue_1, kernel_1, num_events_in_wait_list_2, event_wait_list_2, event_1)
+	return makeError(ErrorCode(res))
 }
 
 // END cl-3.1/cl.go //

@@ -503,7 +503,8 @@ SLICE_HINTS = {
     r"clGetPlatformIDs": [SliceHint("platforms", "num_entries", "num_platforms")],
     r"clGetDeviceIDs": [SliceHint("devices", "num_entries", "num_devices")],
     r"clEnqueueNDRangeKernel": [SliceHint("global_work_offset"), SliceHint("global_work_size"), SliceHint("local_work_size")],
-    r"clCreate(SubDevice|Context|ContextFromType|BufferWithProperties)": [SliceHint("properties", zero_term_array=True)],
+    r"clCreate((?!Sampler)\w+WithProperties|SubDevice|Context|ContextFromType)": [SliceHint("properties", zero_term_array=True)],
+    r"clCreateSamplerWithProperties": [SliceHint("sampler_properties", zero_term_array=True)],
     r"clCreateSubDevices": [SliceHint("out_devices", "num_devices")],
     r"clCreateContext": [SliceHint("devices", "num_devices")],
     r"clGetSupportedImageFormats": [SliceHint("image_formats", "num_entries", "num_image_formats")],
@@ -701,7 +702,10 @@ class FunctionStepGetInfo(FunctionStep):
             s.code += f"\tif isString {{\n"
             s.code += f"\t\toutVal := {vrval.name}\n"
             s.code += f"\t\t{vrval.name} = newSlice\n"
-            s.code += f"\t\tdefer func() {{ outVal.Set({vrval.name}.Convert(reflect.TypeFor[string]())) }}()\n"
+            s.code += f"\t\tdefer func() {{\n"
+            s.code += f"\t\t\toutVal.Set({vrval.name}.Convert(reflect.TypeFor[string]()))\n"
+            s.code += "\t\t\tif outVal.Len() > 0 && outVal.Index(outVal.Len()-1).IsZero() { outVal.Set(outVal.Slice(0, outVal.Len()-1)) } // strip null terminator\n"
+            s.code += "\t\t}()\n"
             s.code += "\t} else {\n"
             s.code += f"\t\t{vrval.name}.Set(newSlice)\n"
             s.code += "\t}\n"

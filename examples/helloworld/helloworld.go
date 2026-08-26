@@ -27,7 +27,7 @@ func main() {
 	if err := cl.GetPlatformInfo(platform, cl.PLATFORM_NAME, &platformName); err != nil {
 		log.Fatal(err)
 	}
-	fmt.Println("Platform:", platformName)
+	fmt.Printf("Platform: %q\n", platformName)
 
 	devices, err := cl.GetDeviceIDs(platform, cl.DEVICE_TYPE_GPU)
 	if err != nil {
@@ -42,7 +42,7 @@ func main() {
 	if err := cl.GetDeviceInfo(device, cl.DEVICE_NAME, &deviceName); err != nil {
 		log.Fatal(err)
 	}
-	fmt.Println("Device:", deviceName)
+	fmt.Printf("Device: %q\n", deviceName)
 
 	ctx, err := cl.CreateContext(nil, []cl.DeviceId{device}, nil)
 	if err != nil {

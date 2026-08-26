@@ -1735,7 +1735,10 @@ func GetPlatformInfo(platform PlatformId, param_name PlatformInfo, param_value a
 		if isString {
 			outVal := param_value_1
 			param_value_1 = newSlice
-			defer func() { outVal.Set(param_value_1.Convert(reflect.TypeFor[string]())) }()
+			defer func() {
+				outVal.Set(param_value_1.Convert(reflect.TypeFor[string]()))
+				if outVal.Len() > 0 && outVal.Index(outVal.Len()-1).IsZero() { outVal.Set(outVal.Slice(0, outVal.Len()-1)) } // strip null terminator
+			}()
 		} else {
 			param_value_1.Set(newSlice)
 		}
@@ -1788,7 +1791,10 @@ func GetDeviceInfo(device DeviceId, param_name DeviceInfo, param_value any) (_er
 		if isString {
 			outVal := param_value_1
 			param_value_1 = newSlice
-			defer func() { outVal.Set(param_value_1.Convert(reflect.TypeFor[string]())) }()
+			defer func() {
+				outVal.Set(param_value_1.Convert(reflect.TypeFor[string]()))
+				if outVal.Len() > 0 && outVal.Index(outVal.Len()-1).IsZero() { outVal.Set(outVal.Slice(0, outVal.Len()-1)) } // strip null terminator
+			}()
 		} else {
 			param_value_1.Set(newSlice)
 		}
@@ -1946,7 +1952,10 @@ func GetContextInfo(context Context, param_name ContextInfo, param_value any) (_
 		if isString {
 			outVal := param_value_1
 			param_value_1 = newSlice
-			defer func() { outVal.Set(param_value_1.Convert(reflect.TypeFor[string]())) }()
+			defer func() {
+				outVal.Set(param_value_1.Convert(reflect.TypeFor[string]()))
+				if outVal.Len() > 0 && outVal.Index(outVal.Len()-1).IsZero() { outVal.Set(outVal.Slice(0, outVal.Len()-1)) } // strip null terminator
+			}()
 		} else {
 			param_value_1.Set(newSlice)
 		}
@@ -1977,12 +1986,14 @@ func SetContextDestructorCallback(context Context, pfn_notify func(context Conte
 	return makeError(ErrorCode(res))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateCommandQueueWithProperties.html
-func CreateCommandQueueWithProperties(context Context, device DeviceId, properties *QueueProperties) (_res CommandQueue, _errcode_ret error) {
+func CreateCommandQueueWithProperties(context Context, device DeviceId, properties []QueueProperties) (_res CommandQueue, _errcode_ret error) {
 	var errcode_ret_1 C.cl_int
+	properties_1, properties_fin := sliceToCZeroTerm(properties)
+	defer properties_fin()
 	context_1 := C.cl_context(context)
 	device_1 := C.cl_device_id(device)
-	properties_1 := (*C.cl_queue_properties)(properties)
-	res := C.clCreateCommandQueueWithProperties(context_1, device_1, properties_1, &errcode_ret_1)
+	properties_2 := (*C.cl_queue_properties)(properties_1)
+	res := C.clCreateCommandQueueWithProperties(context_1, device_1, properties_2, &errcode_ret_1)
 	res_1 := CommandQueue(res)
 	return res_1, makeError(ErrorCode(errcode_ret_1))
 }
@@ -2028,7 +2039,10 @@ func GetCommandQueueInfo(command_queue CommandQueue, param_name CommandQueueInfo
 		if isString {
 			outVal := param_value_1
 			param_value_1 = newSlice
-			defer func() { outVal.Set(param_value_1.Convert(reflect.TypeFor[string]())) }()
+			defer func() {
+				outVal.Set(param_value_1.Convert(reflect.TypeFor[string]()))
+				if outVal.Len() > 0 && outVal.Index(outVal.Len()-1).IsZero() { outVal.Set(outVal.Slice(0, outVal.Len()-1)) } // strip null terminator
+			}()
 		} else {
 			param_value_1.Set(newSlice)
 		}
@@ -2100,15 +2114,17 @@ func CreateBufferWithProperties(context Context, properties []MemProperties, fla
 	return res_1, makeError(ErrorCode(errcode_ret_1))
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateImageWithProperties.html
-func CreateImageWithProperties(context Context, properties *MemProperties, flags MemFlags, image_format *ImageFormat, image_desc *ImageDesc, host_ptr unsafe.Pointer) (_res Mem, _errcode_ret error) {
+func CreateImageWithProperties(context Context, properties []MemProperties, flags MemFlags, image_format *ImageFormat, image_desc *ImageDesc, host_ptr unsafe.Pointer) (_res Mem, _errcode_ret error) {
 	var errcode_ret_1 C.cl_int
+	properties_1, properties_fin := sliceToCZeroTerm(properties)
+	defer properties_fin()
 	context_1 := C.cl_context(context)
-	properties_1 := (*C.cl_mem_properties)(properties)
+	properties_2 := (*C.cl_mem_properties)(properties_1)
 	flags_1 := C.cl_mem_flags(flags)
 	image_format_1 := (*C.cl_image_format)(image_format)
 	image_desc_1 := (*C.cl_image_desc)(image_desc)
 	host_ptr_1 := host_ptr
-	res := C.clCreateImageWithProperties(context_1, properties_1, flags_1, image_format_1, image_desc_1, host_ptr_1, &errcode_ret_1)
+	res := C.clCreateImageWithProperties(context_1, properties_2, flags_1, image_format_1, image_desc_1, host_ptr_1, &errcode_ret_1)
 	res_1 := Mem(res)
 	return res_1, makeError(ErrorCode(errcode_ret_1))
 }
@@ -2167,7 +2183,10 @@ func GetMemObjectInfo(memobj Mem, param_name MemInfo, param_value any) (_err err
 		if isString {
 			outVal := param_value_1
 			param_value_1 = newSlice
-			defer func() { outVal.Set(param_value_1.Convert(reflect.TypeFor[string]())) }()
+			defer func() {
+				outVal.Set(param_value_1.Convert(reflect.TypeFor[string]()))
+				if outVal.Len() > 0 && outVal.Index(outVal.Len()-1).IsZero() { outVal.Set(outVal.Slice(0, outVal.Len()-1)) } // strip null terminator
+			}()
 		} else {
 			param_value_1.Set(newSlice)
 		}
@@ -2208,7 +2227,10 @@ func GetImageInfo(image Mem, param_name ImageInfo, param_value any) (_err error)
 		if isString {
 			outVal := param_value_1
 			param_value_1 = newSlice
-			defer func() { outVal.Set(param_value_1.Convert(reflect.TypeFor[string]())) }()
+			defer func() {
+				outVal.Set(param_value_1.Convert(reflect.TypeFor[string]()))
+				if outVal.Len() > 0 && outVal.Index(outVal.Len()-1).IsZero() { outVal.Set(outVal.Slice(0, outVal.Len()-1)) } // strip null terminator
+			}()
 		} else {
 			param_value_1.Set(newSlice)
 		}
@@ -2249,7 +2271,10 @@ func GetPipeInfo(pipe Mem, param_name PipeInfo, param_value any) (_err error) {
 		if isString {
 			outVal := param_value_1
 			param_value_1 = newSlice
-			defer func() { outVal.Set(param_value_1.Convert(reflect.TypeFor[string]())) }()
+			defer func() {
+				outVal.Set(param_value_1.Convert(reflect.TypeFor[string]()))
+				if outVal.Len() > 0 && outVal.Index(outVal.Len()-1).IsZero() { outVal.Set(outVal.Slice(0, outVal.Len()-1)) } // strip null terminator
+			}()
 		} else {
 			param_value_1.Set(newSlice)
 		}
@@ -2296,11 +2321,13 @@ func SVMFree(context Context, svm_pointer unsafe.Pointer) {
 	C.clSVMFree(context_1, svm_pointer_1)
 }
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateSamplerWithProperties.html
-func CreateSamplerWithProperties(context Context, sampler_properties *SamplerProperties) (_res Sampler, _errcode_ret error) {
+func CreateSamplerWithProperties(context Context, sampler_properties []SamplerProperties) (_res Sampler, _errcode_ret error) {
 	var errcode_ret_1 C.cl_int
+	sampler_properties_1, sampler_properties_fin := sliceToCZeroTerm(sampler_properties)
+	defer sampler_properties_fin()
 	context_1 := C.cl_context(context)
-	sampler_properties_1 := (*C.cl_sampler_properties)(sampler_properties)
-	res := C.clCreateSamplerWithProperties(context_1, sampler_properties_1, &errcode_ret_1)
+	sampler_properties_2 := (*C.cl_sampler_properties)(sampler_properties_1)
+	res := C.clCreateSamplerWithProperties(context_1, sampler_properties_2, &errcode_ret_1)
 	res_1 := Sampler(res)
 	return res_1, makeError(ErrorCode(errcode_ret_1))
 }
@@ -2346,7 +2373,10 @@ func GetSamplerInfo(sampler Sampler, param_name SamplerInfo, param_value any) (_
 		if isString {
 			outVal := param_value_1
 			param_value_1 = newSlice
-			defer func() { outVal.Set(param_value_1.Convert(reflect.TypeFor[string]())) }()
+			defer func() {
+				outVal.Set(param_value_1.Convert(reflect.TypeFor[string]()))
+				if outVal.Len() > 0 && outVal.Index(outVal.Len()-1).IsZero() { outVal.Set(outVal.Slice(0, outVal.Len()-1)) } // strip null terminator
+			}()
 		} else {
 			param_value_1.Set(newSlice)
 		}
@@ -2585,7 +2615,10 @@ func GetProgramInfo(program Program, param_name ProgramInfo, param_value any) (_
 		if isString {
 			outVal := param_value_1
 			param_value_1 = newSlice
-			defer func() { outVal.Set(param_value_1.Convert(reflect.TypeFor[string]())) }()
+			defer func() {
+				outVal.Set(param_value_1.Convert(reflect.TypeFor[string]()))
+				if outVal.Len() > 0 && outVal.Index(outVal.Len()-1).IsZero() { outVal.Set(outVal.Slice(0, outVal.Len()-1)) } // strip null terminator
+			}()
 		} else {
 			param_value_1.Set(newSlice)
 		}
@@ -2627,7 +2660,10 @@ func GetProgramBuildInfo(program Program, device DeviceId, param_name ProgramBui
 		if isString {
 			outVal := param_value_1
 			param_value_1 = newSlice
-			defer func() { outVal.Set(param_value_1.Convert(reflect.TypeFor[string]())) }()
+			defer func() {
+				outVal.Set(param_value_1.Convert(reflect.TypeFor[string]()))
+				if outVal.Len() > 0 && outVal.Index(outVal.Len()-1).IsZero() { outVal.Set(outVal.Slice(0, outVal.Len()-1)) } // strip null terminator
+			}()
 		} else {
 			param_value_1.Set(newSlice)
 		}
@@ -2735,7 +2771,10 @@ func GetKernelInfo(kernel Kernel, param_name KernelInfo, param_value any) (_err 
 		if isString {
 			outVal := param_value_1
 			param_value_1 = newSlice
-			defer func() { outVal.Set(param_value_1.Convert(reflect.TypeFor[string]())) }()
+			defer func() {
+				outVal.Set(param_value_1.Convert(reflect.TypeFor[string]()))
+				if outVal.Len() > 0 && outVal.Index(outVal.Len()-1).IsZero() { outVal.Set(outVal.Slice(0, outVal.Len()-1)) } // strip null terminator
+			}()
 		} else {
 			param_value_1.Set(newSlice)
 		}
@@ -2777,7 +2816,10 @@ func GetKernelArgInfo(kernel Kernel, arg_indx uint32, param_name KernelArgInfo, 
 		if isString {
 			outVal := param_value_1
 			param_value_1 = newSlice
-			defer func() { outVal.Set(param_value_1.Convert(reflect.TypeFor[string]())) }()
+			defer func() {
+				outVal.Set(param_value_1.Convert(reflect.TypeFor[string]()))
+				if outVal.Len() > 0 && outVal.Index(outVal.Len()-1).IsZero() { outVal.Set(outVal.Slice(0, outVal.Len()-1)) } // strip null terminator
+			}()
 		} else {
 			param_value_1.Set(newSlice)
 		}
@@ -2819,7 +2861,10 @@ func GetKernelWorkGroupInfo(kernel Kernel, device DeviceId, param_name KernelWor
 		if isString {
 			outVal := param_value_1
 			param_value_1 = newSlice
-			defer func() { outVal.Set(param_value_1.Convert(reflect.TypeFor[string]())) }()
+			defer func() {
+				outVal.Set(param_value_1.Convert(reflect.TypeFor[string]()))
+				if outVal.Len() > 0 && outVal.Index(outVal.Len()-1).IsZero() { outVal.Set(outVal.Slice(0, outVal.Len()-1)) } // strip null terminator
+			}()
 		} else {
 			param_value_1.Set(newSlice)
 		}
@@ -2863,7 +2908,10 @@ func GetKernelSubGroupInfo(kernel Kernel, device DeviceId, param_name KernelSubG
 		if isString {
 			outVal := param_value_1
 			param_value_1 = newSlice
-			defer func() { outVal.Set(param_value_1.Convert(reflect.TypeFor[string]())) }()
+			defer func() {
+				outVal.Set(param_value_1.Convert(reflect.TypeFor[string]()))
+				if outVal.Len() > 0 && outVal.Index(outVal.Len()-1).IsZero() { outVal.Set(outVal.Slice(0, outVal.Len()-1)) } // strip null terminator
+			}()
 		} else {
 			param_value_1.Set(newSlice)
 		}
@@ -2913,7 +2961,10 @@ func GetEventInfo(event Event, param_name EventInfo, param_value any) (_err erro
 		if isString {
 			outVal := param_value_1
 			param_value_1 = newSlice
-			defer func() { outVal.Set(param_value_1.Convert(reflect.TypeFor[string]())) }()
+			defer func() {
+				outVal.Set(param_value_1.Convert(reflect.TypeFor[string]()))
+				if outVal.Len() > 0 && outVal.Index(outVal.Len()-1).IsZero() { outVal.Set(outVal.Slice(0, outVal.Len()-1)) } // strip null terminator
+			}()
 		} else {
 			param_value_1.Set(newSlice)
 		}
@@ -3002,7 +3053,10 @@ func GetEventProfilingInfo(event Event, param_name ProfilingInfo, param_value an
 		if isString {
 			outVal := param_value_1
 			param_value_1 = newSlice
-			defer func() { outVal.Set(param_value_1.Convert(reflect.TypeFor[string]())) }()
+			defer func() {
+				outVal.Set(param_value_1.Convert(reflect.TypeFor[string]()))
+				if outVal.Len() > 0 && outVal.Index(outVal.Len()-1).IsZero() { outVal.Set(outVal.Slice(0, outVal.Len()-1)) } // strip null terminator
+			}()
 		} else {
 			param_value_1.Set(newSlice)
 		}

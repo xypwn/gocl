@@ -3665,33 +3665,42 @@ func EnqueueWriteBufferSlice[E any, S ~[]E](command_queue CommandQueue, buffer M
 // The [CreateBufferSlice] of [CreateBufferWithProperties].
 //
 func CreateBufferSliceWithProperties[E any, S ~[]E](context Context, properties []MemProperties, flags MemFlags, items S) (_res Mem, _errcode_ret error) {
-	if flags&MEM_COPY_HOST_PTR == 0 && flags&MEM_USE_HOST_PTR == 0 {
-		panic("CreateBufferSlice needs flag MEM_COPY_HOST_PTR or MEM_USE_HOST_PTR (use CreateBufferEmpty to create an empty buffer from a data type and size)")
+	if len(items) == 0 {
+		panic("items must be non-empty")
 	}
 	var pin runtime.Pinner
 	defer pin.Unpin()
-	itemSize := uint64(unsafe.Sizeof(items[0]))
-	pin.Pin(&items[0])
+	size := uint64(len(items))*uint64(unsafe.Sizeof(items[0]))
+	ptr := unsafe.Pointer(&items[0])
+	if flags&MEM_COPY_HOST_PTR == 0 && flags&MEM_USE_HOST_PTR == 0 {
+		// Prevent CL_INVALID_HOST_PTR
+		ptr = nil
+	} else {
+		pin.Pin(ptr)
+	}
 	if len(properties) == 0 {
 		// BUG: CreateBufferWithProperties seems to cause a segfault on some system, so I'll just
 		// use regular CreateBuffer if possible until I have figured this out.
-		return CreateBuffer(context, flags, uint64(len(items))*itemSize, unsafe.Pointer(&items[0]))
+		return CreateBuffer(context, flags, size, ptr)
 	} else {
-		return CreateBufferWithProperties(context, properties, flags, uint64(len(items))*itemSize, unsafe.Pointer(&items[0]))
+		return CreateBufferWithProperties(context, properties, flags, size, ptr)
 	}
 }
 // (CUSTOM)
 // Like [CreateBuffer], but accepts a slice and automatically determines the memory region size.
 //
-// Flags MUST CONTAIN MEM_USE_HOST_PTR and items must be non-empty. To allocate an empty buffer from a data type and size, see [CreateBufferEmpty].
+// items must be non-empty.
+//
+// Unlike [CreateBuffer], [CreateBufferSlice] accepts non-nil items even if neither MEM_COPY_HOST_PTR nor MEM_USE_HOST_PTR is set.
+// However, note that the data in items will only be copied if MEM_COPY_HOST_PTR or MEM_USE_HOST_PTR is set.
+//
+// To allocate an empty buffer from a data type and item count, see [CreateBufferEmpty].
 //
 func CreateBufferSlice[E any, S ~[]E](context Context, flags MemFlags, items S) (_res Mem, _errcode_ret error) {
 	return CreateBufferSliceWithProperties(context, nil, flags, items)
 }
 // (CUSTOM)
-// Like [CreateBuffer], but accepts a slice and automatically determines the memory region size.
-//
-// Flags MUST NOT CONTAIN MEM_USE_HOST_PTR. To allocate a buffer with initial contents, see [CreateBufferSlice].
+// The [CreateBufferEmpty] of [CreateBufferWithProperties].
 //
 func CreateBufferEmptyWithProperties[E any](context Context, properties []MemProperties, flags MemFlags, num_items int) (_res Mem, _errcode_ret error) {
 	if flags&MEM_COPY_HOST_PTR != 0 || flags&MEM_USE_HOST_PTR != 0 {
@@ -3700,13 +3709,19 @@ func CreateBufferEmptyWithProperties[E any](context Context, properties []MemPro
 	var zero E
 	itemSize := uint64(unsafe.Sizeof(zero))
 	if len(properties) == 0 {
+		// BUG: CreateBufferWithProperties seems to cause a segfault on some system, so I'll just
+		// use regular CreateBuffer if possible until I have figured this out.
 		return CreateBuffer(context, flags, uint64(num_items)*itemSize, nil)
 	} else {
 		return CreateBufferWithProperties(context, properties, flags, uint64(num_items)*itemSize, nil)
 	}
 }
 // (CUSTOM)
-// The [CreateBufferEmpty] of [CreateBufferWithProperties].
+// Like [CreateBuffer], but determines memory requirements from data type and item count.
+//
+// Flags MUST NOT CONTAIN MEM_COPY_HOST_PTR or MEM_USE_HOST_PTR (will panic otherwise).
+// 
+// To allocate a buffer from a slice, see [CreateBufferSlice].
 //
 func CreateBufferEmpty[E any](context Context, flags MemFlags, num_items int) (_res Mem, _errcode_ret error) {
 	return CreateBufferEmptyWithProperties[E](context, nil, flags, num_items)

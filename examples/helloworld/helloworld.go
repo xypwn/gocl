@@ -85,7 +85,7 @@ func main() {
 		log.Fatal(err)
 	}
 	defer cl.ReleaseMemObject(memIn)
-	memOut, err := cl.CreateBufferEmpty[float32](ctx, cl.MEM_WRITE_ONLY, len(data))
+	memOut, err := cl.CreateBufferSlice(ctx, cl.MEM_WRITE_ONLY, data[:])
 	if err != nil {
 		log.Fatal(err)
 	}

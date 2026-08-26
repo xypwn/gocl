@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"runtime"
-	"unsafe"
 
 	cl "github.com/xypwn/gocl/cl-3.1"
 )
@@ -24,6 +23,12 @@ func main() {
 	}
 	platform := platforms[0]
 
+	var platformName string
+	if err := cl.GetPlatformInfo(platform, cl.PLATFORM_NAME, &platformName); err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println("Platform:", platformName)
+
 	devices, err := cl.GetDeviceIDs(platform, cl.DEVICE_TYPE_GPU)
 	if err != nil {
 		log.Fatal(err)
@@ -33,13 +38,10 @@ func main() {
 	}
 	device := devices[0]
 
-	var deviceNameLen uint64
-	var deviceNameArr [64]byte
-	if err := cl.GetDeviceInfo(device, cl.DEVICE_NAME, uint64(len(deviceNameArr)), unsafe.Pointer(&deviceNameArr[0]), &deviceNameLen); err != nil {
+	var deviceName string
+	if err := cl.GetDeviceInfo(device, cl.DEVICE_NAME, &deviceName); err != nil {
 		log.Fatal(err)
 	}
-	deviceName := string(deviceNameArr[:deviceNameLen])
-
 	fmt.Println("Device:", deviceName)
 
 	ctx, err := cl.CreateContext(nil, []cl.DeviceId{device}, nil)
@@ -60,21 +62,14 @@ func main() {
 	}
 	defer cl.ReleaseProgram(prog)
 
-	if err := cl.BuildProgram(prog, []cl.DeviceId{device}, nil, func(program cl.Program) {
+	if err := cl.BuildProgram(prog, []cl.DeviceId{device}, "", func(program cl.Program) {
 		fmt.Println("Done building program (callback)")
 	}); err != nil {
 		var logStr string
-		{
-			var logLen uint64
-			cl.GetProgramBuildInfo(prog, device, cl.PROGRAM_BUILD_LOG, 0, nil, &logLen)
-			logBuf := make([]byte, logLen)
-			if err := cl.GetProgramBuildInfo(prog, device, cl.PROGRAM_BUILD_LOG, logLen, unsafe.Pointer(&logBuf[0]), &logLen); err != nil {
-				log.Fatal(err)
-			}
-			runtime.KeepAlive(logBuf)
-			logStr = string(logBuf)
+		if err := cl.GetProgramBuildInfo(prog, device, cl.PROGRAM_BUILD_LOG, &logStr); err != nil {
+			log.Fatal(err)
 		}
-		log.Fatal(err, logStr)
+		log.Fatal(logStr)
 	}
 
 	kernel, err := cl.CreateKernel(prog, "helloworld")
@@ -84,14 +79,13 @@ func main() {
 	defer cl.ReleaseKernel(kernel)
 
 	data := [8]float32{1, 2, 3, 4, 5, 6, 7, 8}
-	data_size := uint64(int(unsafe.Sizeof(float32(0))) * len(data))
 
-	memIn, err := cl.CreateBuffer(ctx, cl.MEM_READ_ONLY, data_size, nil)
+	memIn, err := cl.CreateBufferSlice(ctx, cl.MEM_READ_ONLY|cl.MEM_COPY_HOST_PTR, data[:])
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer cl.ReleaseMemObject(memIn)
-	memOut, err := cl.CreateBuffer(ctx, cl.MEM_WRITE_ONLY, data_size, nil)
+	memOut, err := cl.CreateBufferEmpty[float32](ctx, cl.MEM_WRITE_ONLY, len(data))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -103,23 +97,18 @@ func main() {
 	}
 	defer cl.ReleaseCommandQueue(queue)
 
-	if err := cl.EnqueueWriteBuffer(queue, memIn, true, 0, data_size, unsafe.Pointer(&data[0]), nil, nil); err != nil {
+	// Not necessary since we called CreateBufferSlice with cl.MEM_COPY_HOST_PTR, but this would
+	// be used to update the buffer contents from the host side.
+	//if err := cl.EnqueueWriteBufferSlice(queue, memIn, true, 0, data[:], nil, nil); err != nil {
+	//	log.Fatal(err)
+	//}
+
+	if err := cl.SetKernelArgValues(kernel, 0, memIn, memOut, uint32(len(data))); err != nil {
 		log.Fatal(err)
 	}
 
-	if err := cl.SetKernelArg(kernel, 0, uint64(unsafe.Sizeof(memIn)), unsafe.Pointer(&memIn)); err != nil {
-		log.Fatal(err)
-	}
-	if err := cl.SetKernelArg(kernel, 1, uint64(unsafe.Sizeof(memOut)), unsafe.Pointer(&memOut)); err != nil {
-		log.Fatal(err)
-	}
-	count := uint32(len(data))
-	if err := cl.SetKernelArg(kernel, 2, uint64(unsafe.Sizeof(count)), unsafe.Pointer(&count)); err != nil {
-		log.Fatal(err)
-	}
-
-	count64 := uint64(count)
-	if err := cl.EnqueueNDRangeKernel(queue, kernel, 1, nil, &count64, nil, nil, nil); err != nil {
+	count64 := uint64(len(data))
+	if err := cl.EnqueueNDRangeKernel(queue, kernel, 1, nil, []uint64{count64}, nil, nil, nil); err != nil {
 		log.Fatal(err)
 	}
 
@@ -127,7 +116,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	if err := cl.EnqueueReadBuffer(queue, memOut, true, 0, data_size, unsafe.Pointer(&data[0]), nil, nil); err != nil {
+	if err := cl.EnqueueReadBufferSlice(queue, memOut, true, 0, data[:], nil, nil); err != nil {
 		log.Fatal(err)
 	}
 

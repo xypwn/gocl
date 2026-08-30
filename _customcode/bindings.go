@@ -267,6 +267,20 @@ func EnqueueFillBufferSlice[E any](command_queue CommandQueue, buffer Mem, patte
 	return EnqueueFillBuffer(command_queue, buffer, unsafe.Pointer(&pattern[0]), uint64(len(pattern))*itemSize, uint64(offset)*itemSize, uint64(size)*itemSize, event_wait_list, event)
 }
 
+// Like [EnqueueCopyBuffer], but for a specific type.
+//
+// src_offset, dst_offset and size are now specified as a number of items (unlike [EnqueueCopyBuffer]).
+//
+//bind:extra
+func EnqueueCopyBufferSlice[E any](command_queue CommandQueue, src Mem, dst Mem, src_offset int, dst_offset int, num_items int, event_wait_list []Event, event *Event) (_err error) {
+	if src_offset < 0 || dst_offset < 0 || num_items < 0 {
+		return makeError(INVALID_VALUE)
+	}
+	var zero E
+	itemSize := uint64(unsafe.Sizeof(zero))
+	return EnqueueCopyBuffer(command_queue, src, dst, uint64(src_offset)*itemSize, uint64(dst_offset)*itemSize, uint64(num_items)*itemSize, event_wait_list, event)
+}
+
 // BackedBuffer is a typed [Mem] ory object that
 // holds the host buffer in itself. It is
 // meant to simplify common buffer use cases
@@ -360,7 +374,7 @@ func (m *BackedBuffer[E]) Release() (err error) {
 // items from indexing from start_offset to end_offset (exclusive) will be
 // read back into the host buffer.
 //
-// end_offset may be set to -1 to indicate the range over all items.
+// end_offset may be set to -1 to indicate the range over all items since start_offset.
 //
 // Returns [INVALID_VALUE] if start_offset >= end_offset, or any start_offset is negative.
 //
@@ -381,8 +395,7 @@ func (m BackedBuffer[E]) EnqueueRead(command_queue CommandQueue, blocking_read b
 // items from indexing from start_offset to end_offset (exclusive) will be
 // written into the device buffer.
 //
-//
-// end_offset may be set to -1 to indicate the range over all items.
+// end_offset may be set to -1 to indicate the range over all items since start_offset.
 //
 // Returns [INVALID_VALUE] if start_offset >= end_offset, or any start_offset is negative.
 //
@@ -400,12 +413,28 @@ func (m BackedBuffer[E]) EnqueueWrite(command_queue CommandQueue, blocking_write
 
 // Calls [EnqueueFillBufferSlice] (see for documentation).
 //
-// Additionally, size may be -1 to indicate len(Items).
+// Additionally, size may be -1 to indicate filling all items starting at offset.
 //
 //bind:extra
 func (m BackedBuffer[E]) EnqueueFill(command_queue CommandQueue, pattern []E, offset int, size int, event_wait_list []Event, event *Event) (_err error) {
 	if size == -1 {
-		size = len(m.Items)
+		size = len(m.Items)-offset
 	}
 	return EnqueueFillBufferSlice(command_queue, m.Mem, pattern, offset, size, event_wait_list, event)
+}
+
+// Calls [EnqueueCopyBufferSlice] (see for documentation).
+//
+// Copies the device contents of this BackedBuffer to dst.
+//
+// Additionally, num_items may be -1 to indicate copying all remaining
+// items after src_offset or dst_offset, whichever has less remaining
+// items.
+//
+//bind:extra
+func (src BackedBuffer[E]) EnqueueCopy(command_queue CommandQueue, dst BackedBuffer[E], src_offset int, dst_offset int, num_items int, event_wait_list []Event, event *Event) (_err error) {
+	if num_items == -1 {
+		num_items = min(len(src.Items)-src_offset, len(dst.Items)-dst_offset)
+	}
+	return EnqueueCopyBufferSlice[E](command_queue, src.Mem, dst.Mem, src_offset, dst_offset, num_items, event_wait_list, event)
 }

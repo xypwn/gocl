@@ -3846,23 +3846,23 @@ func CreateBackedBufferWithProperties[E any](context Context, properties []MemPr
 	if flags & MEM_ALLOC_HOST_PTR != 0 {
 		panic("MEM_ALLOC_HOST_PTR not allowed")
 	}
-	if len(items) <= 0 {
+	res.Items = items
+	if len(res.Items) <= 0 {
 		return BackedBuffer[E]{}, makeError(INVALID_VALUE)
 	}
-	itemSize := uint64(unsafe.Sizeof(&items[0]))
-	res.Pinner.Pin(&items[0])
-	ptr := unsafe.Pointer(&items[0])
+	itemSize := uint64(unsafe.Sizeof(res.Items[0]))
+	res.Pinner.Pin(&res.Items[0])
+	ptr := unsafe.Pointer(&res.Items[0])
 	if flags&MEM_COPY_HOST_PTR == 0 && flags&MEM_USE_HOST_PTR == 0 {
 		// Prevent CL_INVALID_HOST_PTR
 		ptr = nil
 	}
-	res.Items = items
 	if len(properties) == 0 {
 		// BUG: CreateBufferWithProperties seems to cause a segfault on some system, so I'll just
 		// use regular CreateBuffer if possible until I have figured this out.
-		res.Mem, errcode_ret = CreateBuffer(context, flags, uint64(len(items))*itemSize, ptr)
+		res.Mem, errcode_ret = CreateBuffer(context, flags, uint64(len(res.Items))*itemSize, ptr)
 	} else {
-		res.Mem, errcode_ret = CreateBufferWithProperties(context, properties, flags, uint64(len(items))*itemSize, ptr)
+		res.Mem, errcode_ret = CreateBufferWithProperties(context, properties, flags, uint64(len(res.Items))*itemSize, ptr)
 	}
 	if errcode_ret != nil {
 		return BackedBuffer[E]{}, errcode_ret

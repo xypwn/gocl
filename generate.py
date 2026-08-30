@@ -795,17 +795,17 @@ class FunctionStepRet(FunctionStep):
         s.out_values = []
 
 @dataclass
-class CustomFuncs:
+class CustomBindings:
     go: dict[str, list[str]]
     c: dict[str, list[str]]
     extra: list[str]
 
-def get_custom_funcs(filename: str) -> CustomFuncs:
+def get_custom_bindings(filename: str) -> CustomBindings:
     with open(filename) as f:
         s = f.read()
-    BINDFN_RE = r"((?P<comment>(^\/\/.*$\n)+))?^\/\/(?P<bind>bind(c|)):(?P<name>\w+)$\n^(?P<fn>func .*\n(^(?!\}).*\n)+\}|extern .+;$)$"
-    res = CustomFuncs({}, {}, [])
-    for m in re.finditer(BINDFN_RE, s, re.MULTILINE):
+    BIND_RE = r"((?P<comment>(^\/\/.*$\n)+))?^\/\/(?P<bind>bind(c|)):(?P<name>\w+)$\n^(?P<fn>(func|type) .*\n(^(?!\}).*\n)+\}|extern .+;$)$"
+    res = CustomBindings({}, {}, [])
+    for m in re.finditer(BIND_RE, s, re.MULTILINE):
         s = m["fn"]
         if m["comment"] is not None:
             s = m["comment"] + s
@@ -818,7 +818,7 @@ def get_custom_funcs(filename: str) -> CustomFuncs:
         d[m["name"]].append(s)
     return res
 
-def generate_bindings(dstdir: str, go_prelude: str, headers: list[str], custom_funcs: CustomFuncs) -> None:
+def generate_bindings(dstdir: str, go_prelude: str, headers: list[str], custom_bindings: CustomBindings) -> None:
     with open(os.path.join(dstdir, "doc.go"), "w") as o:
         o.write("// Package cl contains OpenCL functions.\npackage cl")
     with open(os.path.join(dstdir, "cl.go"), "w") as o, open(os.path.join(dstdir, "cl_go_defs.h"), "w") as o_c:
@@ -941,15 +941,15 @@ def generate_bindings(dstdir: str, go_prelude: str, headers: list[str], custom_f
                         # TODO This function handles callbacks a bit strangely
                         continue
                     
-                    if func.name in custom_funcs.go:
-                        for f in custom_funcs.c[func.name]:
+                    if func.name in custom_bindings.go:
+                        for f in custom_bindings.c[func.name]:
                             o_c.write(f)
                             o_c.write("\n")
-                        for f in custom_funcs.go[func.name][:-1]:
+                        for f in custom_bindings.go[func.name][:-1]:
                             o.write(f)
                             o.write("\n")
                         o.write(f"// See {docs_url(func.name)}\n")
-                        o.write(custom_funcs.go[func.name][-1])
+                        o.write(custom_bindings.go[func.name][-1])
                         o.write("\n")
                         continue
 
@@ -996,7 +996,7 @@ def generate_bindings(dstdir: str, go_prelude: str, headers: list[str], custom_f
                     o.write("{\n")
                     o.write(textwrap.indent(step_st.code, "\t"))
                     o.write("}\n")
-                for func in custom_funcs.extra:
+                for func in custom_bindings.extra:
                     o.write("// (CUSTOM)\n")
                     o.write(func)
                     o.write("\n")
@@ -1031,5 +1031,5 @@ if __name__ == "__main__":
             "cl-3.1/inc/CL/cl_platform.h",
             "cl-3.1/inc/CL/cl.h",
         ],
-        get_custom_funcs("_customcode/funcs.go")
+        get_custom_bindings("_customcode/bindings.go")
     )

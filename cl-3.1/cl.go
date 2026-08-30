@@ -3686,50 +3686,23 @@ func SetKernelArgValues(kernel Kernel, arg_offset uint32, values ...any) (_err e
 	return nil
 }
 // (CUSTOM)
-// Like [EnqueueReadBuffer], but accepts a slice and automatically determines the memory region size.
-//
-// offset is now the number of ITEMS, not bytes (unlike [EnqueueReadBuffer]).
-//
-func EnqueueReadBufferSlice[E any, S ~[]E](command_queue CommandQueue, buffer Mem, blocking_read bool, offset int, items S, event_wait_list []Event, event *Event) (_err error) {
-	if len(items) == 0 {
-		return makeError(INVALID_VALUE)
-	}
-	var pin runtime.Pinner
-	defer pin.Unpin()
-	itemSize := uint64(unsafe.Sizeof(items[0]))
-	pin.Pin(&items[0])
-	return EnqueueReadBuffer(command_queue, buffer, blocking_read, uint64(offset)*itemSize, uint64(len(items))*itemSize, unsafe.Pointer(&items[0]), event_wait_list, event)
-}
-// (CUSTOM)
-// Like [EnqueueWriteBuffer], but accepts a slice and automatically determines the memory region size.
-//
-// offset is now the number of ITEMS, not bytes (unlike [EnqueueWriteBuffer]).
-//
-func EnqueueWriteBufferSlice[E any, S ~[]E](command_queue CommandQueue, buffer Mem, blocking_write bool, offset int, items S, event_wait_list []Event, event *Event) (_err error) {
-	if len(items) == 0 {
-		return makeError(INVALID_VALUE)
-	}
-	var pin runtime.Pinner
-	defer pin.Unpin()
-	itemSize := uint64(unsafe.Sizeof(items[0]))
-	pin.Pin(&items[0])
-	return EnqueueWriteBuffer(command_queue, buffer, blocking_write, uint64(offset)*itemSize, uint64(len(items))*itemSize, unsafe.Pointer(&items[0]), event_wait_list, event)
-}
-// (CUSTOM)
 // The [CreateBufferSlice] of [CreateBufferWithProperties].
 //
 func CreateBufferSliceWithProperties[E any, S ~[]E](context Context, properties []MemProperties, flags MemFlags, items S) (_res Mem, _errcode_ret error) {
 	if len(items) == 0 {
 		panic("items must be non-empty")
 	}
-	var pin runtime.Pinner
-	defer pin.Unpin()
+	if flags & MEM_ALLOC_HOST_PTR != 0 {
+		panic("MEM_ALLOC_HOST_PTR not allowed")
+	}
 	size := uint64(len(items))*uint64(unsafe.Sizeof(items[0]))
 	ptr := unsafe.Pointer(&items[0])
 	if flags&MEM_COPY_HOST_PTR == 0 && flags&MEM_USE_HOST_PTR == 0 {
 		// Prevent CL_INVALID_HOST_PTR
 		ptr = nil
 	} else {
+		var pin runtime.Pinner
+		defer pin.Unpin()
 		pin.Pin(ptr)
 	}
 	if len(properties) == 0 {
@@ -3742,6 +3715,9 @@ func CreateBufferSliceWithProperties[E any, S ~[]E](context Context, properties 
 }
 // (CUSTOM)
 // Like [CreateBuffer], but accepts a slice and automatically determines the memory region size.
+//
+// Does NOT properly handle Go memory pinning in the case of async operations or MEM_USE_PTR. You
+// either have to handle pinning yourself, or use [BackedBuffer].
 //
 // items must be non-empty.
 //
@@ -3779,6 +3755,189 @@ func CreateBufferEmptyWithProperties[E any](context Context, properties []MemPro
 //
 func CreateBufferEmpty[E any](context Context, flags MemFlags, num_items int) (_res Mem, _errcode_ret error) {
 	return CreateBufferEmptyWithProperties[E](context, nil, flags, num_items)
+}
+// (CUSTOM)
+// Like [EnqueueReadBuffer], but accepts a slice and automatically determines the memory region size.
+//
+// offset is now the number of ITEMS, not bytes (unlike [EnqueueReadBuffer]).
+//
+func EnqueueReadBufferSlice[E any](command_queue CommandQueue, buffer Mem, blocking_read bool, offset int, items []E, event_wait_list []Event, event *Event) (_err error) {
+	if len(items) == 0 {
+		return makeError(INVALID_VALUE)
+	}
+	var pin runtime.Pinner
+	defer pin.Unpin()
+	itemSize := uint64(unsafe.Sizeof(items[0]))
+	pin.Pin(&items[0])
+	return EnqueueReadBuffer(command_queue, buffer, blocking_read, uint64(offset)*itemSize, uint64(len(items))*itemSize, unsafe.Pointer(&items[0]), event_wait_list, event)
+}
+// (CUSTOM)
+// Like [EnqueueWriteBuffer], but accepts a slice and automatically determines the memory region size.
+//
+// offset is now the number of ITEMS, not bytes (unlike [EnqueueWriteBuffer]).
+//
+func EnqueueWriteBufferSlice[E any](command_queue CommandQueue, buffer Mem, blocking_write bool, offset int, items []E, event_wait_list []Event, event *Event) (_err error) {
+	if len(items) == 0 {
+		return makeError(INVALID_VALUE)
+	}
+	var pin runtime.Pinner
+	defer pin.Unpin()
+	itemSize := uint64(unsafe.Sizeof(items[0]))
+	pin.Pin(&items[0])
+	return EnqueueWriteBuffer(command_queue, buffer, blocking_write, uint64(offset)*itemSize, uint64(len(items))*itemSize, unsafe.Pointer(&items[0]), event_wait_list, event)
+}
+// (CUSTOM)
+// Like [EnqueueFillBuffer].
+//
+// offset and size is now specified as a number of items (unlike [EnqueueFillBuffer]).
+//
+// Pattern must be a slice with a power of two size in bytes, which will repeatedly
+// be filled into the device buffer starting at item offset, spanning size items.
+//
+// size must be a multiple of len(pattern).
+//
+// Returns [INVALID_VALUE] if len(pattern) == 0, size < 0, offset < 0, or the operation would write out of bounds.
+//
+func EnqueueFillBufferSlice[E any](command_queue CommandQueue, buffer Mem, pattern []E, offset int, size int, event_wait_list []Event, event *Event) (_err error) {
+	if len(pattern) == 0 || size < 0 || offset < 0 {
+		return makeError(INVALID_VALUE)
+	}
+	var pin runtime.Pinner
+	defer pin.Unpin()
+	itemSize := uint64(unsafe.Sizeof(pattern[0]))
+	pin.Pin(&pattern[0])
+	return EnqueueFillBuffer(command_queue, buffer, unsafe.Pointer(&pattern[0]), uint64(len(pattern))*itemSize, uint64(offset)*itemSize, uint64(size)*itemSize, event_wait_list, event)
+}
+// (CUSTOM)
+// BackedBuffer is a typed [Mem]ory object that
+// holds the host buffer in itself. It is
+// meant to simplify common buffer use cases
+// and is not a full replacement for all OpenCL
+// buffer features.
+//
+// It automatically pins the item memory and
+// unpins it when [BackedBuffer.Release] is called.
+// (Long-term pinning is necessary to guarantee
+// valid memory accesses from C if memory is
+// accessed outside of the function itself, e.g.
+// through asynchronous use, or MEM_USE_HOST_PTR).
+//
+// Data synchronization between host and device
+// memory is still left up to the user.
+//
+// When passing a BackedBuffer to [SetKernelArgValue]
+// or similar, the BackedBuffer.Mem field must be
+// passed instead of the BackedBuffer itself.
+//
+type BackedBuffer[E any] struct {
+	// OpenCL memory handle.
+	Mem Mem
+	// Internal Go buffer slice.
+	Items []E
+	// Pinner used to pin the buffer
+	// slice memory. DO NOT TOUCH THIS
+	// UNLESS YOU KNOW WHAT YOU'RE DOING.
+	Pinner runtime.Pinner
+}
+// (CUSTOM)
+// The [CreateBackedBuffer] of [CreateBufferWithProperties].
+//
+func CreateBackedBufferWithProperties[E any](context Context, properties []MemProperties, flags MemFlags, items []E) (res BackedBuffer[E], errcode_ret error) {
+	if flags & MEM_ALLOC_HOST_PTR != 0 {
+		panic("MEM_ALLOC_HOST_PTR not allowed")
+	}
+	if len(items) <= 0 {
+		return BackedBuffer[E]{}, makeError(INVALID_VALUE)
+	}
+	itemSize := uint64(unsafe.Sizeof(&items[0]))
+	res.Pinner.Pin(&items[0])
+	ptr := unsafe.Pointer(&items[0])
+	if flags&MEM_COPY_HOST_PTR == 0 && flags&MEM_USE_HOST_PTR == 0 {
+		// Prevent CL_INVALID_HOST_PTR
+		ptr = nil
+	}
+	res.Items = items
+	if len(properties) == 0 {
+		// BUG: CreateBufferWithProperties seems to cause a segfault on some system, so I'll just
+		// use regular CreateBuffer if possible until I have figured this out.
+		res.Mem, errcode_ret = CreateBuffer(context, flags, uint64(len(items))*itemSize, ptr)
+	} else {
+		res.Mem, errcode_ret = CreateBufferWithProperties(context, properties, flags, uint64(len(items))*itemSize, ptr)
+	}
+	if errcode_ret != nil {
+		return BackedBuffer[E]{}, errcode_ret
+	}
+	return
+}
+// (CUSTOM)
+// Creates a new buffer backed by a Go slice.
+//
+// Automatically pins the slice until released to ensure
+// async usage works correctly.
+//
+// Note that the given items are only copied to the device if
+// MEM_COPY_HOST_PTR or MEM_USE_HOST_PTR is set.
+//
+// The user MUST call [BackedBuffer.Release] when done to ensure
+// the slice is deallocated.
+//
+func CreateBackedBuffer[E any](context Context, flags MemFlags, items []E) (res BackedBuffer[E], errcode_ret error) {
+	return CreateBackedBufferWithProperties(context, nil, flags, items)
+}
+// (CUSTOM)
+// Calls [ReleaseMemObject] and unpins the memory.
+//
+func (m *BackedBuffer[E]) Release() (err error) {
+	err = ReleaseMemObject(m.Mem)
+	m.Pinner.Unpin()
+	return
+}
+// (CUSTOM)
+// Like [EnqueueReadBuffer].
+//
+// items from indexing from start_offset to end_offset (exclusive) will be
+// read back into the host buffer.
+//
+// end_offset may be set to -1 to indicate the range over all items.
+//
+// Returns [INVALID_VALUE] if start_offset >= end_offset, or any start_offset is negative.
+//
+func (m BackedBuffer[E]) EnqueueRead(command_queue CommandQueue, blocking_read bool, start_offset int, end_offset int, event_wait_list []Event, event *Event) (_err error) {
+	if end_offset == -1 {
+		end_offset = len(m.Items)
+	}
+	if start_offset < 0 || end_offset < 0 || start_offset >= end_offset {
+		return makeError(INVALID_VALUE)
+	}
+	itemSize := uint64(unsafe.Sizeof(m.Items[0]))
+	return EnqueueReadBuffer(command_queue, m.Mem, blocking_read, uint64(start_offset)*itemSize, uint64(end_offset-start_offset)*itemSize, unsafe.Pointer(&m.Items[0]), event_wait_list, event)
+}
+// (CUSTOM)
+// Like [EnqueueWriteBuffer].
+//
+// items from indexing from start_offset to end_offset (exclusive) will be
+// written into the device buffer.
+//
+//
+// end_offset may be set to -1 to indicate the range over all items.
+//
+// Returns [INVALID_VALUE] if start_offset >= end_offset, or any start_offset is negative.
+//
+func (m BackedBuffer[E]) EnqueueWrite(command_queue CommandQueue, blocking_write bool, start_offset int, end_offset int, event_wait_list []Event, event *Event) (_err error) {
+	if end_offset == -1 {
+		end_offset = len(m.Items)
+	}
+	if start_offset < 0 || end_offset < 0 || start_offset >= end_offset {
+		return makeError(INVALID_VALUE)
+	}
+	itemSize := uint64(unsafe.Sizeof(m.Items[0]))
+	return EnqueueWriteBuffer(command_queue, m.Mem, blocking_write, uint64(start_offset)*itemSize, uint64(end_offset-start_offset)*itemSize, unsafe.Pointer(&m.Items[0]), event_wait_list, event)
+}
+// (CUSTOM)
+// Calls [EnqueueFillBufferSlice] (see for documentation).
+//
+func (m BackedBuffer[E]) EnqueueFill(command_queue CommandQueue, pattern []E, offset int, size int, event_wait_list []Event, event *Event) (_err error) {
+	return EnqueueFillBufferSlice(command_queue, m.Mem, pattern, offset, size, event_wait_list, event)
 }
 
 // END cl-3.1/inc/CL/cl.h //

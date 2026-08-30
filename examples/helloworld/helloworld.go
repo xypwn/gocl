@@ -78,18 +78,18 @@ func main() {
 	}
 	defer cl.ReleaseKernel(kernel)
 
-	data := [8]float32{1, 2, 3, 4, 5, 6, 7, 8}
+	bufIn, err := cl.CreateBackedBuffer(ctx, cl.MEM_READ_ONLY|cl.MEM_COPY_HOST_PTR,
+		[]float32{1, 2, 3, 4, 5, 6, 7, 8})
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer bufIn.Release()
 
-	memIn, err := cl.CreateBufferSlice(ctx, cl.MEM_READ_ONLY|cl.MEM_COPY_HOST_PTR, data[:])
+	bufOut, err := cl.CreateBackedBuffer(ctx, cl.MEM_WRITE_ONLY, make([]float32, 8))
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer cl.ReleaseMemObject(memIn)
-	memOut, err := cl.CreateBufferSlice(ctx, cl.MEM_WRITE_ONLY, data[:])
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer cl.ReleaseMemObject(memOut)
+	defer bufOut.Release()
 
 	queue, err := cl.CreateCommandQueueWithProperties(ctx, device, nil)
 	if err != nil {
@@ -99,16 +99,15 @@ func main() {
 
 	// Not necessary since we called CreateBufferSlice with cl.MEM_COPY_HOST_PTR, but this would
 	// be used to update the buffer contents from the host side.
-	//if err := cl.EnqueueWriteBufferSlice(queue, memIn, true, 0, data[:], nil, nil); err != nil {
+	//if err := memIn.EnqueueWrite(queue, true, 0, -1, nil, nil); err != nil {
 	//	log.Fatal(err)
 	//}
 
-	if err := cl.SetKernelArgValues(kernel, 0, memIn, memOut, uint32(len(data))); err != nil {
+	if err := cl.SetKernelArgValues(kernel, 0, bufIn.Mem, bufOut.Mem, uint32(len(bufIn.Items))); err != nil {
 		log.Fatal(err)
 	}
 
-	count64 := uint64(len(data))
-	if err := cl.EnqueueNDRangeKernel(queue, kernel, 1, nil, []uint64{count64}, nil, nil, nil); err != nil {
+	if err := cl.EnqueueNDRangeKernel(queue, kernel, 1, nil, []uint64{uint64(len(bufIn.Items))}, nil, nil, nil); err != nil {
 		log.Fatal(err)
 	}
 
@@ -116,9 +115,9 @@ func main() {
 		log.Fatal(err)
 	}
 
-	if err := cl.EnqueueReadBufferSlice(queue, memOut, true, 0, data[:], nil, nil); err != nil {
+	if err := bufOut.EnqueueRead(queue, true, 0, -1, nil, nil); err != nil {
 		log.Fatal(err)
 	}
 
-	fmt.Println(data)
+	fmt.Println(bufOut.Items)
 }

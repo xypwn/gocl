@@ -3809,7 +3809,7 @@ func EnqueueFillBufferSlice[E any](command_queue CommandQueue, buffer Mem, patte
 	return EnqueueFillBuffer(command_queue, buffer, unsafe.Pointer(&pattern[0]), uint64(len(pattern))*itemSize, uint64(offset)*itemSize, uint64(size)*itemSize, event_wait_list, event)
 }
 // (CUSTOM)
-// BackedBuffer is a typed [Mem]ory object that
+// BackedBuffer is a typed [Mem] ory object that
 // holds the host buffer in itself. It is
 // meant to simplify common buffer use cases
 // and is not a full replacement for all OpenCL
@@ -3936,7 +3936,12 @@ func (m BackedBuffer[E]) EnqueueWrite(command_queue CommandQueue, blocking_write
 // (CUSTOM)
 // Calls [EnqueueFillBufferSlice] (see for documentation).
 //
+// Additionally, size may be -1 to indicate len(Items).
+//
 func (m BackedBuffer[E]) EnqueueFill(command_queue CommandQueue, pattern []E, offset int, size int, event_wait_list []Event, event *Event) (_err error) {
+	if size == -1 {
+		size = len(m.Items)
+	}
 	return EnqueueFillBufferSlice(command_queue, m.Mem, pattern, offset, size, event_wait_list, event)
 }
 

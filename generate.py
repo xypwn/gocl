@@ -412,6 +412,14 @@ class FunctionStep:
         pass
 
 @dataclass
+class CallbackHint:
+    unregister: Literal["first_call","on_cond"]
+
+CALLBACK_HINTS: dict[str, CallbackHint] = {
+    r"clBuildProgram": CallbackHint("first_call"),
+}
+
+@dataclass
 class FunctionStepConvToC(FunctionStep):
     values_field: Literal["values", "out_values"]
     def __call__(self, s: FunctionStepState, ctx: Context, func: Function):
@@ -424,6 +432,11 @@ class FunctionStepConvToC(FunctionStep):
                 new_values.append(param)
                 continue
             if param.typ.cbasetyp == "func":
+                #hint = [h for [pat, h] in CALLBACK_HINTS.items() if re.fullmatch(pat, func.name)]
+                #if len(hint) != 1:
+                #    raise Exception(f"expected exactly one callback hint to match {func.name}, but got {len(hint)}")
+                #hint = hint[0]
+
                 assert param.typ.func_params is not None
                 assert param.typ.func_results is not None
                 cb_name = f"go_cl_callback_{func.name}"
@@ -652,34 +665,43 @@ class FunctionStepGetInfo(FunctionStep):
         else:
             s.conv_unlock_variables(["param_name", "param_value_size", "param_value", "param_value_size_ret"])
             s.comment += f"// Simplified binding for {func.name}.\n//\n"
-            s.comment += "// value must be a pointer to the result variable.\n"
-            s.comment += "// The result variable must be typed according to param_name.\n"
+            s.comment += "// The type parameter must be typed according to param_name.\n"
             s.comment += "// The Go types allowed for the C types are:\n"
             s.comment += "//\t- numerical/struct (e.g. cl_uint, size_t, cl_device_type): equivalent Go type (e.g. uint32, uint64, DeviceType)\n"
             s.comment += "//\t- string (e.g. char[]): Go string or []byte (either is accepted)\n"
             s.comment += "//\t- array (e.g. size_t[]): slice of equivalent Go type (e.g. []uint64)\n"
+
+            s.generic = "T any"
+
+            s.code += "maybeStripNullTermAndConvToString := func(v reflect.Value) reflect.Value {\n"
+            s.code += "\tif reflect.TypeFor[T]().Kind() == reflect.String {\n"
+            s.code += "\t\treturn v.Slice(0, max(0, v.Len()-1)).Convert(reflect.TypeFor[T]())\n"
+            s.code += "\t}\n"
+            s.code += "\treturn v\n"
+            s.code += "}\n"
 
             s.code += f"var pin runtime.Pinner\n"
             s.code += f"defer pin.Unpin()\n"
 
             nactsize = s.mkvar(f"param_actual_size")
             s.code += f"var {nactsize} C.size_t\n"
+            ntyp = s.mkvar(f"value_typ")
+            s.code += f"{ntyp} := reflect.TypeFor[T]()\n"
 
-            ([vrval, vsize, vsize_ret], [vval]) = s.replace_in_params(
-                ["param_value", "param_value_size", "param_value_size_ret"],
-                [Var("param_value", Type("", "any"))])
+            [vrval, vsize, vsize_ret] = s.remove_in_params(["param_value", "param_value_size", "param_value_size_ret"])
 
             [vname] = s.get_values(["param_name"])
             s.replace_values(["param_name"],
                 [Var(f"{vname.typ.conv_from_go(vname.name)}", vname.typ)])
 
-            s.code += f"{vrval.name} := reflect.ValueOf({vval.name})\n"
-            s.code += f"if {vrval.name}.Kind() != reflect.Pointer {{\n\tpanic(\"expected param_value to be pointer to value, but got \"+{vrval.name}.Kind().String())\n}}\n"
+            nvptr = s.mkvar("param_ptr")
+            s.replace_values(["param_value"],
+                [Var(nvptr, Type("", "unsafe.Pointer"))])
+            s.code += f"var {nvptr} unsafe.Pointer\n"
 
-            s.code += f"isString := {vrval.name}.Elem().Kind() == reflect.String\n"
-            s.code += f"if isString || {vrval.name}.Elem().Kind() == reflect.Slice {{\n"
-            s.code += f"\t{vrval.name} = {vrval.name}.Elem() // need to take the address of the slice, not the pointer\n"
-
+            s.code += f"var {vrval.name} reflect.Value\n"
+            s.code += f"if {ntyp}.Kind() == reflect.Slice || {ntyp}.Kind() == reflect.String {{\n"
+            s.code += "\t// Slice or string: Find actual size first.\n"
             # Call function with nil params to determine actual size
             s.code += f"\tC.{func.name}("
             for i, v in enumerate(s.values):
@@ -694,26 +716,27 @@ class FunctionStepGetInfo(FunctionStep):
                 else:
                     s.code += v.name
             s.code += ")\n"
-
-            s.code += f"\tvar elemTyp reflect.Type\n"
-            s.code += f"\tif isString {{ elemTyp = reflect.TypeFor[byte]() }} else {{ elemTyp = {vrval.name}.Type().Elem() }}\n"
-            s.code += f"\tsliceLen := int({nactsize})/int(elemTyp.Size())\n"
-            s.code += f"\tnewSlice := reflect.MakeSlice(reflect.SliceOf(elemTyp), sliceLen, sliceLen)\n"
-            s.code += f"\tif isString {{\n"
-            s.code += f"\t\toutVal := {vrval.name}\n"
-            s.code += f"\t\t{vrval.name} = newSlice\n"
-            s.code += f"\t\tdefer func() {{\n"
-            s.code += f"\t\t\toutVal.Set({vrval.name}.Convert(reflect.TypeFor[string]()))\n"
-            s.code += "\t\t\tif outVal.Len() > 0 && outVal.Index(outVal.Len()-1).IsZero() { outVal.Set(outVal.Slice(0, outVal.Len()-1)) } // strip null terminator\n"
-            s.code += "\t\t}()\n"
-            s.code += "\t} else {\n"
-            s.code += f"\t\t{vrval.name}.Set(newSlice)\n"
+            s.code += f"\tsliceLen := int({nactsize})\n"
+            s.code += f"\tif {ntyp}.Kind() == reflect.Slice {{\n"
+            s.code += f"\t\tsliceLen /= int({ntyp}.Size())\n"
+            s.code += f"\t\t{vrval.name} = reflect.New({ntyp}).Elem()\n"
+            s.code += f"\t\t{vrval.name}.Set(reflect.MakeSlice({ntyp}, sliceLen, sliceLen))\n"
+            s.code += "\t} else { // string\n"
+            s.code += f"\t\t{vrval.name} = reflect.New(reflect.TypeFor[[]byte]()).Elem()\n"
+            s.code += f"\t\t{vrval.name}.Set(reflect.MakeSlice(reflect.TypeFor[[]byte](), sliceLen, sliceLen))\n"
             s.code += "\t}\n"
-            s.code += f"}} else {{\n\t{nactsize} = C.size_t({vrval.name}.Type().Size())\n}}\n"
-            s.code += f"pin.Pin({vrval.name}.UnsafePointer())\n"
-            vrval.name = f"{vrval.name}.UnsafePointer()"
+            s.code += f"\t{nvptr} = {vrval.name}.UnsafePointer()\n"
+            s.code += "} else {\n"
+            s.code += f"\t{vrval.name} = reflect.New({ntyp}).Elem()\n"
+            s.code += f"\t{nvptr} = {vrval.name}.Addr().UnsafePointer()\n"
+            s.code += "}\n"
+
+            s.code += f"pin.Pin({nvptr})\n"
             vsize.name = f"{nactsize}"
             vsize_ret.name = f"&{nactsize}"
+
+            s.out_params.insert(0, Var("_value", Type("", "T")))
+            s.out_values.insert(0, Var(f"maybeStripNullTermAndConvToString({vrval.name}).Interface().(T)", Type("", "T")))
 
 
 class FunctionStepCall(FunctionStep):
@@ -843,6 +866,10 @@ def generate_bindings(dstdir: str, go_prelude: str, headers: list[str], custom_b
 
         def docs_url(typ: str) -> str:
             return f"https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/{typ}.html"
+        def api_version(v: str) -> str:
+            return v.removeprefix("VERSION_").removesuffix("_DEPRECATED").replace("_", ".")
+        def api_version_deprecated(v: str) -> bool:
+            return v.endswith("_DEPRECATED")
 
         o.write(go_prelude)
         for header in headers:
@@ -976,7 +1003,12 @@ def generate_bindings(dstdir: str, go_prelude: str, headers: list[str], custom_b
                     goname = func.name.removeprefix("cl")
                     if step_st.comment != "":
                         o.write(f"{step_st.comment}//\n")
-                    o.write(f"// See {docs_url(func.name)}\n")
+                    o.write(f"// API version {api_version(func.api_version)} and above.\n")
+                    o.write("//\n")
+                    if api_version_deprecated(func.api_version):
+                        o.write("// Deprecated: This function is deprecated in the current OpenCL version (see Khronos docs link below for details).\n")
+                        o.write("//\n")
+                    o.write(f"// See {docs_url(func.name)}.\n")
                     o.write(f"func {goname}")
                     if step_st.generic != "":
                         o.write(f"[{step_st.generic}]")

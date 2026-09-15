@@ -1695,7 +1695,9 @@ func (v DeviceIntegerDotProductCapabilities) String() string {
 
 // Functions
 
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetPlatformIDs.html
+// API version 1.0 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetPlatformIDs.html.
 func GetPlatformIDs() (_platforms []PlatformId, _err error) {
 	var platforms_actual_len C.cl_uint
 	C.clGetPlatformIDs(0, nil, &platforms_actual_len)
@@ -1707,49 +1709,53 @@ func GetPlatformIDs() (_platforms []PlatformId, _err error) {
 }
 // Simplified binding for clGetPlatformInfo.
 //
-// value must be a pointer to the result variable.
-// The result variable must be typed according to param_name.
+// The type parameter must be typed according to param_name.
 // The Go types allowed for the C types are:
 //	- numerical/struct (e.g. cl_uint, size_t, cl_device_type): equivalent Go type (e.g. uint32, uint64, DeviceType)
 //	- string (e.g. char[]): Go string or []byte (either is accepted)
 //	- array (e.g. size_t[]): slice of equivalent Go type (e.g. []uint64)
 //
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetPlatformInfo.html
-func GetPlatformInfo(platform PlatformId, param_name PlatformInfo, param_value any) (_err error) {
+// API version 1.0 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetPlatformInfo.html.
+func GetPlatformInfo[T any](platform PlatformId, param_name PlatformInfo) (_value T, _err error) {
 	platform_1 := C.cl_platform_id(platform)
+	maybeStripNullTermAndConvToString := func(v reflect.Value) reflect.Value {
+		if reflect.TypeFor[T]().Kind() == reflect.String {
+			return v.Slice(0, max(0, v.Len()-1)).Convert(reflect.TypeFor[T]())
+		}
+		return v
+	}
 	var pin runtime.Pinner
 	defer pin.Unpin()
 	var param_actual_size C.size_t
-	param_value_1 := reflect.ValueOf(param_value)
-	if param_value_1.Kind() != reflect.Pointer {
-		panic("expected param_value to be pointer to value, but got "+param_value_1.Kind().String())
-	}
-	isString := param_value_1.Elem().Kind() == reflect.String
-	if isString || param_value_1.Elem().Kind() == reflect.Slice {
-		param_value_1 = param_value_1.Elem() // need to take the address of the slice, not the pointer
-		C.clGetPlatformInfo(platform_1, C.cl_platform_info(param_name), 0, nil, &param_actual_size)
-		var elemTyp reflect.Type
-		if isString { elemTyp = reflect.TypeFor[byte]() } else { elemTyp = param_value_1.Type().Elem() }
-		sliceLen := int(param_actual_size)/int(elemTyp.Size())
-		newSlice := reflect.MakeSlice(reflect.SliceOf(elemTyp), sliceLen, sliceLen)
-		if isString {
-			outVal := param_value_1
-			param_value_1 = newSlice
-			defer func() {
-				outVal.Set(param_value_1.Convert(reflect.TypeFor[string]()))
-				if outVal.Len() > 0 && outVal.Index(outVal.Len()-1).IsZero() { outVal.Set(outVal.Slice(0, outVal.Len()-1)) } // strip null terminator
-			}()
-		} else {
-			param_value_1.Set(newSlice)
+	value_typ := reflect.TypeFor[T]()
+	var param_ptr unsafe.Pointer
+	var param_value reflect.Value
+	if value_typ.Kind() == reflect.Slice || value_typ.Kind() == reflect.String {
+		// Slice or string: Find actual size first.
+		C.clGetPlatformInfo(platform_1, C.cl_platform_info(param_name), 0, param_ptr, &param_actual_size)
+		sliceLen := int(param_actual_size)
+		if value_typ.Kind() == reflect.Slice {
+			sliceLen /= int(value_typ.Size())
+			param_value = reflect.New(value_typ).Elem()
+			param_value.Set(reflect.MakeSlice(value_typ, sliceLen, sliceLen))
+		} else { // string
+			param_value = reflect.New(reflect.TypeFor[[]byte]()).Elem()
+			param_value.Set(reflect.MakeSlice(reflect.TypeFor[[]byte](), sliceLen, sliceLen))
 		}
+		param_ptr = param_value.UnsafePointer()
 	} else {
-		param_actual_size = C.size_t(param_value_1.Type().Size())
+		param_value = reflect.New(value_typ).Elem()
+		param_ptr = param_value.Addr().UnsafePointer()
 	}
-	pin.Pin(param_value_1.UnsafePointer())
-	res := C.clGetPlatformInfo(platform_1, C.cl_platform_info(param_name), param_actual_size, param_value_1.UnsafePointer(), &param_actual_size)
-	return makeError(ErrorCode(res))
+	pin.Pin(param_ptr)
+	res := C.clGetPlatformInfo(platform_1, C.cl_platform_info(param_name), param_actual_size, param_ptr, &param_actual_size)
+	return maybeStripNullTermAndConvToString(param_value).Interface().(T), makeError(ErrorCode(res))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetDeviceIDs.html
+// API version 1.0 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetDeviceIDs.html.
 func GetDeviceIDs(platform PlatformId, device_type DeviceType) (_devices []DeviceId, _err error) {
 	platform_1 := C.cl_platform_id(platform)
 	device_type_1 := C.cl_device_type(device_type)
@@ -1763,49 +1769,53 @@ func GetDeviceIDs(platform PlatformId, device_type DeviceType) (_devices []Devic
 }
 // Simplified binding for clGetDeviceInfo.
 //
-// value must be a pointer to the result variable.
-// The result variable must be typed according to param_name.
+// The type parameter must be typed according to param_name.
 // The Go types allowed for the C types are:
 //	- numerical/struct (e.g. cl_uint, size_t, cl_device_type): equivalent Go type (e.g. uint32, uint64, DeviceType)
 //	- string (e.g. char[]): Go string or []byte (either is accepted)
 //	- array (e.g. size_t[]): slice of equivalent Go type (e.g. []uint64)
 //
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetDeviceInfo.html
-func GetDeviceInfo(device DeviceId, param_name DeviceInfo, param_value any) (_err error) {
+// API version 1.0 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetDeviceInfo.html.
+func GetDeviceInfo[T any](device DeviceId, param_name DeviceInfo) (_value T, _err error) {
 	device_1 := C.cl_device_id(device)
+	maybeStripNullTermAndConvToString := func(v reflect.Value) reflect.Value {
+		if reflect.TypeFor[T]().Kind() == reflect.String {
+			return v.Slice(0, max(0, v.Len()-1)).Convert(reflect.TypeFor[T]())
+		}
+		return v
+	}
 	var pin runtime.Pinner
 	defer pin.Unpin()
 	var param_actual_size C.size_t
-	param_value_1 := reflect.ValueOf(param_value)
-	if param_value_1.Kind() != reflect.Pointer {
-		panic("expected param_value to be pointer to value, but got "+param_value_1.Kind().String())
-	}
-	isString := param_value_1.Elem().Kind() == reflect.String
-	if isString || param_value_1.Elem().Kind() == reflect.Slice {
-		param_value_1 = param_value_1.Elem() // need to take the address of the slice, not the pointer
-		C.clGetDeviceInfo(device_1, C.cl_device_info(param_name), 0, nil, &param_actual_size)
-		var elemTyp reflect.Type
-		if isString { elemTyp = reflect.TypeFor[byte]() } else { elemTyp = param_value_1.Type().Elem() }
-		sliceLen := int(param_actual_size)/int(elemTyp.Size())
-		newSlice := reflect.MakeSlice(reflect.SliceOf(elemTyp), sliceLen, sliceLen)
-		if isString {
-			outVal := param_value_1
-			param_value_1 = newSlice
-			defer func() {
-				outVal.Set(param_value_1.Convert(reflect.TypeFor[string]()))
-				if outVal.Len() > 0 && outVal.Index(outVal.Len()-1).IsZero() { outVal.Set(outVal.Slice(0, outVal.Len()-1)) } // strip null terminator
-			}()
-		} else {
-			param_value_1.Set(newSlice)
+	value_typ := reflect.TypeFor[T]()
+	var param_ptr unsafe.Pointer
+	var param_value reflect.Value
+	if value_typ.Kind() == reflect.Slice || value_typ.Kind() == reflect.String {
+		// Slice or string: Find actual size first.
+		C.clGetDeviceInfo(device_1, C.cl_device_info(param_name), 0, param_ptr, &param_actual_size)
+		sliceLen := int(param_actual_size)
+		if value_typ.Kind() == reflect.Slice {
+			sliceLen /= int(value_typ.Size())
+			param_value = reflect.New(value_typ).Elem()
+			param_value.Set(reflect.MakeSlice(value_typ, sliceLen, sliceLen))
+		} else { // string
+			param_value = reflect.New(reflect.TypeFor[[]byte]()).Elem()
+			param_value.Set(reflect.MakeSlice(reflect.TypeFor[[]byte](), sliceLen, sliceLen))
 		}
+		param_ptr = param_value.UnsafePointer()
 	} else {
-		param_actual_size = C.size_t(param_value_1.Type().Size())
+		param_value = reflect.New(value_typ).Elem()
+		param_ptr = param_value.Addr().UnsafePointer()
 	}
-	pin.Pin(param_value_1.UnsafePointer())
-	res := C.clGetDeviceInfo(device_1, C.cl_device_info(param_name), param_actual_size, param_value_1.UnsafePointer(), &param_actual_size)
-	return makeError(ErrorCode(res))
+	pin.Pin(param_ptr)
+	res := C.clGetDeviceInfo(device_1, C.cl_device_info(param_name), param_actual_size, param_ptr, &param_actual_size)
+	return maybeStripNullTermAndConvToString(param_value).Interface().(T), makeError(ErrorCode(res))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateSubDevices.html
+// API version 1.2 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateSubDevices.html.
 func CreateSubDevices(in_device DeviceId, properties *DevicePartitionProperty, out_devices []DeviceId, num_devices_ret *uint32) (_err error) {
 	out_devices_1, num_devices_1, out_devices_fin := sliceToC(out_devices)
 	defer out_devices_fin()
@@ -1817,19 +1827,25 @@ func CreateSubDevices(in_device DeviceId, properties *DevicePartitionProperty, o
 	res := C.clCreateSubDevices(in_device_1, properties_1, num_devices_2, out_devices_2, num_devices_ret_1)
 	return makeError(ErrorCode(res))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clRetainDevice.html
+// API version 1.2 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clRetainDevice.html.
 func RetainDevice(device DeviceId) (_err error) {
 	device_1 := C.cl_device_id(device)
 	res := C.clRetainDevice(device_1)
 	return makeError(ErrorCode(res))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clReleaseDevice.html
+// API version 1.2 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clReleaseDevice.html.
 func ReleaseDevice(device DeviceId) (_err error) {
 	device_1 := C.cl_device_id(device)
 	res := C.clReleaseDevice(device_1)
 	return makeError(ErrorCode(res))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clSetDefaultDeviceCommandQueue.html
+// API version 2.1 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clSetDefaultDeviceCommandQueue.html.
 func SetDefaultDeviceCommandQueue(context Context, device DeviceId, command_queue CommandQueue) (_err error) {
 	context_1 := C.cl_context(context)
 	device_1 := C.cl_device_id(device)
@@ -1837,7 +1853,9 @@ func SetDefaultDeviceCommandQueue(context Context, device DeviceId, command_queu
 	res := C.clSetDefaultDeviceCommandQueue(context_1, device_1, command_queue_1)
 	return makeError(ErrorCode(res))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetDeviceAndHostTimer.html
+// API version 2.1 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetDeviceAndHostTimer.html.
 func GetDeviceAndHostTimer(device DeviceId) (_device_timestamp uint64, _host_timestamp uint64, _err error) {
 	var device_timestamp_1 C.cl_ulong
 	var host_timestamp_1 C.cl_ulong
@@ -1847,7 +1865,9 @@ func GetDeviceAndHostTimer(device DeviceId) (_device_timestamp uint64, _host_tim
 	host_timestamp_2 := uint64(host_timestamp_1)
 	return device_timestamp_2, host_timestamp_2, makeError(ErrorCode(res))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetHostTimer.html
+// API version 2.1 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetHostTimer.html.
 func GetHostTimer(device DeviceId) (_host_timestamp uint64, _err error) {
 	var host_timestamp_1 C.cl_ulong
 	device_1 := C.cl_device_id(device)
@@ -1864,7 +1884,9 @@ func go_cl_callback_clCreateContext(errinfo *C.char, private_info *C.void, cb C.
 	defer callbackUnregister(uid)
 	(callbackFn(uid).(func(errinfo *int8, private_info unsafe.Pointer, cb uint64)))(errinfo_1, private_info_1, cb_1)
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateContext.html
+// API version 1.0 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateContext.html.
 func CreateContext(properties []ContextProperties, devices []DeviceId, pfn_notify func(errinfo *int8, private_info unsafe.Pointer, cb uint64)) (_res Context, _errcode_ret error) {
 	var errcode_ret_1 C.cl_int
 	properties_1, properties_fin := sliceToCZeroTerm(properties)
@@ -1893,7 +1915,9 @@ func go_cl_callback_clCreateContextFromType(errinfo *C.char, private_info *C.voi
 	defer callbackUnregister(uid)
 	(callbackFn(uid).(func(errinfo *int8, private_info unsafe.Pointer, cb uint64)))(errinfo_1, private_info_1, cb_1)
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateContextFromType.html
+// API version 1.0 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateContextFromType.html.
 func CreateContextFromType(properties []ContextProperties, device_type DeviceType, pfn_notify func(errinfo *int8, private_info unsafe.Pointer, cb uint64)) (_res Context, _errcode_ret error) {
 	var errcode_ret_1 C.cl_int
 	properties_1, properties_fin := sliceToCZeroTerm(properties)
@@ -1910,13 +1934,17 @@ func CreateContextFromType(properties []ContextProperties, device_type DeviceTyp
 	res_1 := Context(res)
 	return res_1, makeError(ErrorCode(errcode_ret_1))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clRetainContext.html
+// API version 1.0 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clRetainContext.html.
 func RetainContext(context Context) (_err error) {
 	context_1 := C.cl_context(context)
 	res := C.clRetainContext(context_1)
 	return makeError(ErrorCode(res))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clReleaseContext.html
+// API version 1.0 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clReleaseContext.html.
 func ReleaseContext(context Context) (_err error) {
 	context_1 := C.cl_context(context)
 	res := C.clReleaseContext(context_1)
@@ -1924,47 +1952,49 @@ func ReleaseContext(context Context) (_err error) {
 }
 // Simplified binding for clGetContextInfo.
 //
-// value must be a pointer to the result variable.
-// The result variable must be typed according to param_name.
+// The type parameter must be typed according to param_name.
 // The Go types allowed for the C types are:
 //	- numerical/struct (e.g. cl_uint, size_t, cl_device_type): equivalent Go type (e.g. uint32, uint64, DeviceType)
 //	- string (e.g. char[]): Go string or []byte (either is accepted)
 //	- array (e.g. size_t[]): slice of equivalent Go type (e.g. []uint64)
 //
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetContextInfo.html
-func GetContextInfo(context Context, param_name ContextInfo, param_value any) (_err error) {
+// API version 1.0 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetContextInfo.html.
+func GetContextInfo[T any](context Context, param_name ContextInfo) (_value T, _err error) {
 	context_1 := C.cl_context(context)
+	maybeStripNullTermAndConvToString := func(v reflect.Value) reflect.Value {
+		if reflect.TypeFor[T]().Kind() == reflect.String {
+			return v.Slice(0, max(0, v.Len()-1)).Convert(reflect.TypeFor[T]())
+		}
+		return v
+	}
 	var pin runtime.Pinner
 	defer pin.Unpin()
 	var param_actual_size C.size_t
-	param_value_1 := reflect.ValueOf(param_value)
-	if param_value_1.Kind() != reflect.Pointer {
-		panic("expected param_value to be pointer to value, but got "+param_value_1.Kind().String())
-	}
-	isString := param_value_1.Elem().Kind() == reflect.String
-	if isString || param_value_1.Elem().Kind() == reflect.Slice {
-		param_value_1 = param_value_1.Elem() // need to take the address of the slice, not the pointer
-		C.clGetContextInfo(context_1, C.cl_context_info(param_name), 0, nil, &param_actual_size)
-		var elemTyp reflect.Type
-		if isString { elemTyp = reflect.TypeFor[byte]() } else { elemTyp = param_value_1.Type().Elem() }
-		sliceLen := int(param_actual_size)/int(elemTyp.Size())
-		newSlice := reflect.MakeSlice(reflect.SliceOf(elemTyp), sliceLen, sliceLen)
-		if isString {
-			outVal := param_value_1
-			param_value_1 = newSlice
-			defer func() {
-				outVal.Set(param_value_1.Convert(reflect.TypeFor[string]()))
-				if outVal.Len() > 0 && outVal.Index(outVal.Len()-1).IsZero() { outVal.Set(outVal.Slice(0, outVal.Len()-1)) } // strip null terminator
-			}()
-		} else {
-			param_value_1.Set(newSlice)
+	value_typ := reflect.TypeFor[T]()
+	var param_ptr unsafe.Pointer
+	var param_value reflect.Value
+	if value_typ.Kind() == reflect.Slice || value_typ.Kind() == reflect.String {
+		// Slice or string: Find actual size first.
+		C.clGetContextInfo(context_1, C.cl_context_info(param_name), 0, param_ptr, &param_actual_size)
+		sliceLen := int(param_actual_size)
+		if value_typ.Kind() == reflect.Slice {
+			sliceLen /= int(value_typ.Size())
+			param_value = reflect.New(value_typ).Elem()
+			param_value.Set(reflect.MakeSlice(value_typ, sliceLen, sliceLen))
+		} else { // string
+			param_value = reflect.New(reflect.TypeFor[[]byte]()).Elem()
+			param_value.Set(reflect.MakeSlice(reflect.TypeFor[[]byte](), sliceLen, sliceLen))
 		}
+		param_ptr = param_value.UnsafePointer()
 	} else {
-		param_actual_size = C.size_t(param_value_1.Type().Size())
+		param_value = reflect.New(value_typ).Elem()
+		param_ptr = param_value.Addr().UnsafePointer()
 	}
-	pin.Pin(param_value_1.UnsafePointer())
-	res := C.clGetContextInfo(context_1, C.cl_context_info(param_name), param_actual_size, param_value_1.UnsafePointer(), &param_actual_size)
-	return makeError(ErrorCode(res))
+	pin.Pin(param_ptr)
+	res := C.clGetContextInfo(context_1, C.cl_context_info(param_name), param_actual_size, param_ptr, &param_actual_size)
+	return maybeStripNullTermAndConvToString(param_value).Interface().(T), makeError(ErrorCode(res))
 }
 //export go_cl_callback_clSetContextDestructorCallback
 func go_cl_callback_clSetContextDestructorCallback(context C.cl_context, user_data *C.void) {
@@ -1973,7 +2003,9 @@ func go_cl_callback_clSetContextDestructorCallback(context C.cl_context, user_da
 	defer callbackUnregister(uid)
 	(callbackFn(uid).(func(context Context)))(context_1)
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clSetContextDestructorCallback.html
+// API version 3.0 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clSetContextDestructorCallback.html.
 func SetContextDestructorCallback(context Context, pfn_notify func(context Context)) (_err error) {
 	context_1 := C.cl_context(context)
 	var callback_uid unsafe.Pointer
@@ -1985,7 +2017,9 @@ func SetContextDestructorCallback(context Context, pfn_notify func(context Conte
 	res := C.clSetContextDestructorCallback(context_1, callback, callback_uid)
 	return makeError(ErrorCode(res))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateCommandQueueWithProperties.html
+// API version 2.0 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateCommandQueueWithProperties.html.
 func CreateCommandQueueWithProperties(context Context, device DeviceId, properties []QueueProperties) (_res CommandQueue, _errcode_ret error) {
 	var errcode_ret_1 C.cl_int
 	properties_1, properties_fin := sliceToCZeroTerm(properties)
@@ -1997,13 +2031,17 @@ func CreateCommandQueueWithProperties(context Context, device DeviceId, properti
 	res_1 := CommandQueue(res)
 	return res_1, makeError(ErrorCode(errcode_ret_1))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clRetainCommandQueue.html
+// API version 1.0 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clRetainCommandQueue.html.
 func RetainCommandQueue(command_queue CommandQueue) (_err error) {
 	command_queue_1 := C.cl_command_queue(command_queue)
 	res := C.clRetainCommandQueue(command_queue_1)
 	return makeError(ErrorCode(res))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clReleaseCommandQueue.html
+// API version 1.0 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clReleaseCommandQueue.html.
 func ReleaseCommandQueue(command_queue CommandQueue) (_err error) {
 	command_queue_1 := C.cl_command_queue(command_queue)
 	res := C.clReleaseCommandQueue(command_queue_1)
@@ -2011,49 +2049,53 @@ func ReleaseCommandQueue(command_queue CommandQueue) (_err error) {
 }
 // Simplified binding for clGetCommandQueueInfo.
 //
-// value must be a pointer to the result variable.
-// The result variable must be typed according to param_name.
+// The type parameter must be typed according to param_name.
 // The Go types allowed for the C types are:
 //	- numerical/struct (e.g. cl_uint, size_t, cl_device_type): equivalent Go type (e.g. uint32, uint64, DeviceType)
 //	- string (e.g. char[]): Go string or []byte (either is accepted)
 //	- array (e.g. size_t[]): slice of equivalent Go type (e.g. []uint64)
 //
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetCommandQueueInfo.html
-func GetCommandQueueInfo(command_queue CommandQueue, param_name CommandQueueInfo, param_value any) (_err error) {
+// API version 1.0 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetCommandQueueInfo.html.
+func GetCommandQueueInfo[T any](command_queue CommandQueue, param_name CommandQueueInfo) (_value T, _err error) {
 	command_queue_1 := C.cl_command_queue(command_queue)
+	maybeStripNullTermAndConvToString := func(v reflect.Value) reflect.Value {
+		if reflect.TypeFor[T]().Kind() == reflect.String {
+			return v.Slice(0, max(0, v.Len()-1)).Convert(reflect.TypeFor[T]())
+		}
+		return v
+	}
 	var pin runtime.Pinner
 	defer pin.Unpin()
 	var param_actual_size C.size_t
-	param_value_1 := reflect.ValueOf(param_value)
-	if param_value_1.Kind() != reflect.Pointer {
-		panic("expected param_value to be pointer to value, but got "+param_value_1.Kind().String())
-	}
-	isString := param_value_1.Elem().Kind() == reflect.String
-	if isString || param_value_1.Elem().Kind() == reflect.Slice {
-		param_value_1 = param_value_1.Elem() // need to take the address of the slice, not the pointer
-		C.clGetCommandQueueInfo(command_queue_1, C.cl_command_queue_info(param_name), 0, nil, &param_actual_size)
-		var elemTyp reflect.Type
-		if isString { elemTyp = reflect.TypeFor[byte]() } else { elemTyp = param_value_1.Type().Elem() }
-		sliceLen := int(param_actual_size)/int(elemTyp.Size())
-		newSlice := reflect.MakeSlice(reflect.SliceOf(elemTyp), sliceLen, sliceLen)
-		if isString {
-			outVal := param_value_1
-			param_value_1 = newSlice
-			defer func() {
-				outVal.Set(param_value_1.Convert(reflect.TypeFor[string]()))
-				if outVal.Len() > 0 && outVal.Index(outVal.Len()-1).IsZero() { outVal.Set(outVal.Slice(0, outVal.Len()-1)) } // strip null terminator
-			}()
-		} else {
-			param_value_1.Set(newSlice)
+	value_typ := reflect.TypeFor[T]()
+	var param_ptr unsafe.Pointer
+	var param_value reflect.Value
+	if value_typ.Kind() == reflect.Slice || value_typ.Kind() == reflect.String {
+		// Slice or string: Find actual size first.
+		C.clGetCommandQueueInfo(command_queue_1, C.cl_command_queue_info(param_name), 0, param_ptr, &param_actual_size)
+		sliceLen := int(param_actual_size)
+		if value_typ.Kind() == reflect.Slice {
+			sliceLen /= int(value_typ.Size())
+			param_value = reflect.New(value_typ).Elem()
+			param_value.Set(reflect.MakeSlice(value_typ, sliceLen, sliceLen))
+		} else { // string
+			param_value = reflect.New(reflect.TypeFor[[]byte]()).Elem()
+			param_value.Set(reflect.MakeSlice(reflect.TypeFor[[]byte](), sliceLen, sliceLen))
 		}
+		param_ptr = param_value.UnsafePointer()
 	} else {
-		param_actual_size = C.size_t(param_value_1.Type().Size())
+		param_value = reflect.New(value_typ).Elem()
+		param_ptr = param_value.Addr().UnsafePointer()
 	}
-	pin.Pin(param_value_1.UnsafePointer())
-	res := C.clGetCommandQueueInfo(command_queue_1, C.cl_command_queue_info(param_name), param_actual_size, param_value_1.UnsafePointer(), &param_actual_size)
-	return makeError(ErrorCode(res))
+	pin.Pin(param_ptr)
+	res := C.clGetCommandQueueInfo(command_queue_1, C.cl_command_queue_info(param_name), param_actual_size, param_ptr, &param_actual_size)
+	return maybeStripNullTermAndConvToString(param_value).Interface().(T), makeError(ErrorCode(res))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateBuffer.html
+// API version 1.0 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateBuffer.html.
 func CreateBuffer(context Context, flags MemFlags, size uint64, host_ptr unsafe.Pointer) (_res Mem, _errcode_ret error) {
 	var errcode_ret_1 C.cl_int
 	context_1 := C.cl_context(context)
@@ -2064,7 +2106,9 @@ func CreateBuffer(context Context, flags MemFlags, size uint64, host_ptr unsafe.
 	res_1 := Mem(res)
 	return res_1, makeError(ErrorCode(errcode_ret_1))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateSubBuffer.html
+// API version 1.1 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateSubBuffer.html.
 func CreateSubBuffer(buffer Mem, flags MemFlags, buffer_create_type BufferCreateType, buffer_create_info unsafe.Pointer) (_res Mem, _errcode_ret error) {
 	var errcode_ret_1 C.cl_int
 	buffer_1 := C.cl_mem(buffer)
@@ -2075,7 +2119,9 @@ func CreateSubBuffer(buffer Mem, flags MemFlags, buffer_create_type BufferCreate
 	res_1 := Mem(res)
 	return res_1, makeError(ErrorCode(errcode_ret_1))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateImage.html
+// API version 1.2 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateImage.html.
 func CreateImage(context Context, flags MemFlags, image_format *ImageFormat, image_desc *ImageDesc, host_ptr unsafe.Pointer) (_res Mem, _errcode_ret error) {
 	var errcode_ret_1 C.cl_int
 	context_1 := C.cl_context(context)
@@ -2087,7 +2133,9 @@ func CreateImage(context Context, flags MemFlags, image_format *ImageFormat, ima
 	res_1 := Mem(res)
 	return res_1, makeError(ErrorCode(errcode_ret_1))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreatePipe.html
+// API version 2.0 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreatePipe.html.
 func CreatePipe(context Context, flags MemFlags, pipe_packet_size uint32, pipe_max_packets uint32, properties *PipeProperties) (_res Mem, _errcode_ret error) {
 	var errcode_ret_1 C.cl_int
 	context_1 := C.cl_context(context)
@@ -2099,7 +2147,9 @@ func CreatePipe(context Context, flags MemFlags, pipe_packet_size uint32, pipe_m
 	res_1 := Mem(res)
 	return res_1, makeError(ErrorCode(errcode_ret_1))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateBufferWithProperties.html
+// API version 3.0 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateBufferWithProperties.html.
 func CreateBufferWithProperties(context Context, properties []MemProperties, flags MemFlags, size uint64, host_ptr unsafe.Pointer) (_res Mem, _errcode_ret error) {
 	var errcode_ret_1 C.cl_int
 	properties_1, properties_fin := sliceToCZeroTerm(properties)
@@ -2113,7 +2163,9 @@ func CreateBufferWithProperties(context Context, properties []MemProperties, fla
 	res_1 := Mem(res)
 	return res_1, makeError(ErrorCode(errcode_ret_1))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateImageWithProperties.html
+// API version 3.0 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateImageWithProperties.html.
 func CreateImageWithProperties(context Context, properties []MemProperties, flags MemFlags, image_format *ImageFormat, image_desc *ImageDesc, host_ptr unsafe.Pointer) (_res Mem, _errcode_ret error) {
 	var errcode_ret_1 C.cl_int
 	properties_1, properties_fin := sliceToCZeroTerm(properties)
@@ -2128,19 +2180,25 @@ func CreateImageWithProperties(context Context, properties []MemProperties, flag
 	res_1 := Mem(res)
 	return res_1, makeError(ErrorCode(errcode_ret_1))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clRetainMemObject.html
+// API version 1.0 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clRetainMemObject.html.
 func RetainMemObject(memobj Mem) (_err error) {
 	memobj_1 := C.cl_mem(memobj)
 	res := C.clRetainMemObject(memobj_1)
 	return makeError(ErrorCode(res))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clReleaseMemObject.html
+// API version 1.0 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clReleaseMemObject.html.
 func ReleaseMemObject(memobj Mem) (_err error) {
 	memobj_1 := C.cl_mem(memobj)
 	res := C.clReleaseMemObject(memobj_1)
 	return makeError(ErrorCode(res))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetSupportedImageFormats.html
+// API version 1.0 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetSupportedImageFormats.html.
 func GetSupportedImageFormats(context Context, flags MemFlags, image_type MemObjectType) (_image_formats []ImageFormat, _err error) {
 	context_1 := C.cl_context(context)
 	flags_1 := C.cl_mem_flags(flags)
@@ -2155,135 +2213,141 @@ func GetSupportedImageFormats(context Context, flags MemFlags, image_type MemObj
 }
 // Simplified binding for clGetMemObjectInfo.
 //
-// value must be a pointer to the result variable.
-// The result variable must be typed according to param_name.
+// The type parameter must be typed according to param_name.
 // The Go types allowed for the C types are:
 //	- numerical/struct (e.g. cl_uint, size_t, cl_device_type): equivalent Go type (e.g. uint32, uint64, DeviceType)
 //	- string (e.g. char[]): Go string or []byte (either is accepted)
 //	- array (e.g. size_t[]): slice of equivalent Go type (e.g. []uint64)
 //
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetMemObjectInfo.html
-func GetMemObjectInfo(memobj Mem, param_name MemInfo, param_value any) (_err error) {
+// API version 1.0 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetMemObjectInfo.html.
+func GetMemObjectInfo[T any](memobj Mem, param_name MemInfo) (_value T, _err error) {
 	memobj_1 := C.cl_mem(memobj)
+	maybeStripNullTermAndConvToString := func(v reflect.Value) reflect.Value {
+		if reflect.TypeFor[T]().Kind() == reflect.String {
+			return v.Slice(0, max(0, v.Len()-1)).Convert(reflect.TypeFor[T]())
+		}
+		return v
+	}
 	var pin runtime.Pinner
 	defer pin.Unpin()
 	var param_actual_size C.size_t
-	param_value_1 := reflect.ValueOf(param_value)
-	if param_value_1.Kind() != reflect.Pointer {
-		panic("expected param_value to be pointer to value, but got "+param_value_1.Kind().String())
-	}
-	isString := param_value_1.Elem().Kind() == reflect.String
-	if isString || param_value_1.Elem().Kind() == reflect.Slice {
-		param_value_1 = param_value_1.Elem() // need to take the address of the slice, not the pointer
-		C.clGetMemObjectInfo(memobj_1, C.cl_mem_info(param_name), 0, nil, &param_actual_size)
-		var elemTyp reflect.Type
-		if isString { elemTyp = reflect.TypeFor[byte]() } else { elemTyp = param_value_1.Type().Elem() }
-		sliceLen := int(param_actual_size)/int(elemTyp.Size())
-		newSlice := reflect.MakeSlice(reflect.SliceOf(elemTyp), sliceLen, sliceLen)
-		if isString {
-			outVal := param_value_1
-			param_value_1 = newSlice
-			defer func() {
-				outVal.Set(param_value_1.Convert(reflect.TypeFor[string]()))
-				if outVal.Len() > 0 && outVal.Index(outVal.Len()-1).IsZero() { outVal.Set(outVal.Slice(0, outVal.Len()-1)) } // strip null terminator
-			}()
-		} else {
-			param_value_1.Set(newSlice)
+	value_typ := reflect.TypeFor[T]()
+	var param_ptr unsafe.Pointer
+	var param_value reflect.Value
+	if value_typ.Kind() == reflect.Slice || value_typ.Kind() == reflect.String {
+		// Slice or string: Find actual size first.
+		C.clGetMemObjectInfo(memobj_1, C.cl_mem_info(param_name), 0, param_ptr, &param_actual_size)
+		sliceLen := int(param_actual_size)
+		if value_typ.Kind() == reflect.Slice {
+			sliceLen /= int(value_typ.Size())
+			param_value = reflect.New(value_typ).Elem()
+			param_value.Set(reflect.MakeSlice(value_typ, sliceLen, sliceLen))
+		} else { // string
+			param_value = reflect.New(reflect.TypeFor[[]byte]()).Elem()
+			param_value.Set(reflect.MakeSlice(reflect.TypeFor[[]byte](), sliceLen, sliceLen))
 		}
+		param_ptr = param_value.UnsafePointer()
 	} else {
-		param_actual_size = C.size_t(param_value_1.Type().Size())
+		param_value = reflect.New(value_typ).Elem()
+		param_ptr = param_value.Addr().UnsafePointer()
 	}
-	pin.Pin(param_value_1.UnsafePointer())
-	res := C.clGetMemObjectInfo(memobj_1, C.cl_mem_info(param_name), param_actual_size, param_value_1.UnsafePointer(), &param_actual_size)
-	return makeError(ErrorCode(res))
+	pin.Pin(param_ptr)
+	res := C.clGetMemObjectInfo(memobj_1, C.cl_mem_info(param_name), param_actual_size, param_ptr, &param_actual_size)
+	return maybeStripNullTermAndConvToString(param_value).Interface().(T), makeError(ErrorCode(res))
 }
 // Simplified binding for clGetImageInfo.
 //
-// value must be a pointer to the result variable.
-// The result variable must be typed according to param_name.
+// The type parameter must be typed according to param_name.
 // The Go types allowed for the C types are:
 //	- numerical/struct (e.g. cl_uint, size_t, cl_device_type): equivalent Go type (e.g. uint32, uint64, DeviceType)
 //	- string (e.g. char[]): Go string or []byte (either is accepted)
 //	- array (e.g. size_t[]): slice of equivalent Go type (e.g. []uint64)
 //
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetImageInfo.html
-func GetImageInfo(image Mem, param_name ImageInfo, param_value any) (_err error) {
+// API version 1.0 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetImageInfo.html.
+func GetImageInfo[T any](image Mem, param_name ImageInfo) (_value T, _err error) {
 	image_1 := C.cl_mem(image)
+	maybeStripNullTermAndConvToString := func(v reflect.Value) reflect.Value {
+		if reflect.TypeFor[T]().Kind() == reflect.String {
+			return v.Slice(0, max(0, v.Len()-1)).Convert(reflect.TypeFor[T]())
+		}
+		return v
+	}
 	var pin runtime.Pinner
 	defer pin.Unpin()
 	var param_actual_size C.size_t
-	param_value_1 := reflect.ValueOf(param_value)
-	if param_value_1.Kind() != reflect.Pointer {
-		panic("expected param_value to be pointer to value, but got "+param_value_1.Kind().String())
-	}
-	isString := param_value_1.Elem().Kind() == reflect.String
-	if isString || param_value_1.Elem().Kind() == reflect.Slice {
-		param_value_1 = param_value_1.Elem() // need to take the address of the slice, not the pointer
-		C.clGetImageInfo(image_1, C.cl_image_info(param_name), 0, nil, &param_actual_size)
-		var elemTyp reflect.Type
-		if isString { elemTyp = reflect.TypeFor[byte]() } else { elemTyp = param_value_1.Type().Elem() }
-		sliceLen := int(param_actual_size)/int(elemTyp.Size())
-		newSlice := reflect.MakeSlice(reflect.SliceOf(elemTyp), sliceLen, sliceLen)
-		if isString {
-			outVal := param_value_1
-			param_value_1 = newSlice
-			defer func() {
-				outVal.Set(param_value_1.Convert(reflect.TypeFor[string]()))
-				if outVal.Len() > 0 && outVal.Index(outVal.Len()-1).IsZero() { outVal.Set(outVal.Slice(0, outVal.Len()-1)) } // strip null terminator
-			}()
-		} else {
-			param_value_1.Set(newSlice)
+	value_typ := reflect.TypeFor[T]()
+	var param_ptr unsafe.Pointer
+	var param_value reflect.Value
+	if value_typ.Kind() == reflect.Slice || value_typ.Kind() == reflect.String {
+		// Slice or string: Find actual size first.
+		C.clGetImageInfo(image_1, C.cl_image_info(param_name), 0, param_ptr, &param_actual_size)
+		sliceLen := int(param_actual_size)
+		if value_typ.Kind() == reflect.Slice {
+			sliceLen /= int(value_typ.Size())
+			param_value = reflect.New(value_typ).Elem()
+			param_value.Set(reflect.MakeSlice(value_typ, sliceLen, sliceLen))
+		} else { // string
+			param_value = reflect.New(reflect.TypeFor[[]byte]()).Elem()
+			param_value.Set(reflect.MakeSlice(reflect.TypeFor[[]byte](), sliceLen, sliceLen))
 		}
+		param_ptr = param_value.UnsafePointer()
 	} else {
-		param_actual_size = C.size_t(param_value_1.Type().Size())
+		param_value = reflect.New(value_typ).Elem()
+		param_ptr = param_value.Addr().UnsafePointer()
 	}
-	pin.Pin(param_value_1.UnsafePointer())
-	res := C.clGetImageInfo(image_1, C.cl_image_info(param_name), param_actual_size, param_value_1.UnsafePointer(), &param_actual_size)
-	return makeError(ErrorCode(res))
+	pin.Pin(param_ptr)
+	res := C.clGetImageInfo(image_1, C.cl_image_info(param_name), param_actual_size, param_ptr, &param_actual_size)
+	return maybeStripNullTermAndConvToString(param_value).Interface().(T), makeError(ErrorCode(res))
 }
 // Simplified binding for clGetPipeInfo.
 //
-// value must be a pointer to the result variable.
-// The result variable must be typed according to param_name.
+// The type parameter must be typed according to param_name.
 // The Go types allowed for the C types are:
 //	- numerical/struct (e.g. cl_uint, size_t, cl_device_type): equivalent Go type (e.g. uint32, uint64, DeviceType)
 //	- string (e.g. char[]): Go string or []byte (either is accepted)
 //	- array (e.g. size_t[]): slice of equivalent Go type (e.g. []uint64)
 //
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetPipeInfo.html
-func GetPipeInfo(pipe Mem, param_name PipeInfo, param_value any) (_err error) {
+// API version 2.0 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetPipeInfo.html.
+func GetPipeInfo[T any](pipe Mem, param_name PipeInfo) (_value T, _err error) {
 	pipe_1 := C.cl_mem(pipe)
+	maybeStripNullTermAndConvToString := func(v reflect.Value) reflect.Value {
+		if reflect.TypeFor[T]().Kind() == reflect.String {
+			return v.Slice(0, max(0, v.Len()-1)).Convert(reflect.TypeFor[T]())
+		}
+		return v
+	}
 	var pin runtime.Pinner
 	defer pin.Unpin()
 	var param_actual_size C.size_t
-	param_value_1 := reflect.ValueOf(param_value)
-	if param_value_1.Kind() != reflect.Pointer {
-		panic("expected param_value to be pointer to value, but got "+param_value_1.Kind().String())
-	}
-	isString := param_value_1.Elem().Kind() == reflect.String
-	if isString || param_value_1.Elem().Kind() == reflect.Slice {
-		param_value_1 = param_value_1.Elem() // need to take the address of the slice, not the pointer
-		C.clGetPipeInfo(pipe_1, C.cl_pipe_info(param_name), 0, nil, &param_actual_size)
-		var elemTyp reflect.Type
-		if isString { elemTyp = reflect.TypeFor[byte]() } else { elemTyp = param_value_1.Type().Elem() }
-		sliceLen := int(param_actual_size)/int(elemTyp.Size())
-		newSlice := reflect.MakeSlice(reflect.SliceOf(elemTyp), sliceLen, sliceLen)
-		if isString {
-			outVal := param_value_1
-			param_value_1 = newSlice
-			defer func() {
-				outVal.Set(param_value_1.Convert(reflect.TypeFor[string]()))
-				if outVal.Len() > 0 && outVal.Index(outVal.Len()-1).IsZero() { outVal.Set(outVal.Slice(0, outVal.Len()-1)) } // strip null terminator
-			}()
-		} else {
-			param_value_1.Set(newSlice)
+	value_typ := reflect.TypeFor[T]()
+	var param_ptr unsafe.Pointer
+	var param_value reflect.Value
+	if value_typ.Kind() == reflect.Slice || value_typ.Kind() == reflect.String {
+		// Slice or string: Find actual size first.
+		C.clGetPipeInfo(pipe_1, C.cl_pipe_info(param_name), 0, param_ptr, &param_actual_size)
+		sliceLen := int(param_actual_size)
+		if value_typ.Kind() == reflect.Slice {
+			sliceLen /= int(value_typ.Size())
+			param_value = reflect.New(value_typ).Elem()
+			param_value.Set(reflect.MakeSlice(value_typ, sliceLen, sliceLen))
+		} else { // string
+			param_value = reflect.New(reflect.TypeFor[[]byte]()).Elem()
+			param_value.Set(reflect.MakeSlice(reflect.TypeFor[[]byte](), sliceLen, sliceLen))
 		}
+		param_ptr = param_value.UnsafePointer()
 	} else {
-		param_actual_size = C.size_t(param_value_1.Type().Size())
+		param_value = reflect.New(value_typ).Elem()
+		param_ptr = param_value.Addr().UnsafePointer()
 	}
-	pin.Pin(param_value_1.UnsafePointer())
-	res := C.clGetPipeInfo(pipe_1, C.cl_pipe_info(param_name), param_actual_size, param_value_1.UnsafePointer(), &param_actual_size)
-	return makeError(ErrorCode(res))
+	pin.Pin(param_ptr)
+	res := C.clGetPipeInfo(pipe_1, C.cl_pipe_info(param_name), param_actual_size, param_ptr, &param_actual_size)
+	return maybeStripNullTermAndConvToString(param_value).Interface().(T), makeError(ErrorCode(res))
 }
 //export go_cl_callback_clSetMemObjectDestructorCallback
 func go_cl_callback_clSetMemObjectDestructorCallback(memobj C.cl_mem, user_data *C.void) {
@@ -2292,7 +2356,9 @@ func go_cl_callback_clSetMemObjectDestructorCallback(memobj C.cl_mem, user_data 
 	defer callbackUnregister(uid)
 	(callbackFn(uid).(func(memobj Mem)))(memobj_1)
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clSetMemObjectDestructorCallback.html
+// API version 1.1 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clSetMemObjectDestructorCallback.html.
 func SetMemObjectDestructorCallback(memobj Mem, pfn_notify func(memobj Mem)) (_err error) {
 	memobj_1 := C.cl_mem(memobj)
 	var callback_uid unsafe.Pointer
@@ -2304,7 +2370,9 @@ func SetMemObjectDestructorCallback(memobj Mem, pfn_notify func(memobj Mem)) (_e
 	res := C.clSetMemObjectDestructorCallback(memobj_1, callback, callback_uid)
 	return makeError(ErrorCode(res))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clSVMAlloc.html
+// API version 2.0 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clSVMAlloc.html.
 func SVMAlloc(context Context, flags SvmMemFlags, size uint64, alignment uint32) (_res unsafe.Pointer) {
 	context_1 := C.cl_context(context)
 	flags_1 := C.cl_svm_mem_flags(flags)
@@ -2314,13 +2382,17 @@ func SVMAlloc(context Context, flags SvmMemFlags, size uint64, alignment uint32)
 	res_1 := (unsafe.Pointer)(res)
 	return res_1
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clSVMFree.html
+// API version 2.0 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clSVMFree.html.
 func SVMFree(context Context, svm_pointer unsafe.Pointer) {
 	context_1 := C.cl_context(context)
 	svm_pointer_1 := svm_pointer
 	C.clSVMFree(context_1, svm_pointer_1)
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateSamplerWithProperties.html
+// API version 2.0 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateSamplerWithProperties.html.
 func CreateSamplerWithProperties(context Context, sampler_properties []SamplerProperties) (_res Sampler, _errcode_ret error) {
 	var errcode_ret_1 C.cl_int
 	sampler_properties_1, sampler_properties_fin := sliceToCZeroTerm(sampler_properties)
@@ -2331,13 +2403,17 @@ func CreateSamplerWithProperties(context Context, sampler_properties []SamplerPr
 	res_1 := Sampler(res)
 	return res_1, makeError(ErrorCode(errcode_ret_1))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clRetainSampler.html
+// API version 1.0 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clRetainSampler.html.
 func RetainSampler(sampler Sampler) (_err error) {
 	sampler_1 := C.cl_sampler(sampler)
 	res := C.clRetainSampler(sampler_1)
 	return makeError(ErrorCode(res))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clReleaseSampler.html
+// API version 1.0 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clReleaseSampler.html.
 func ReleaseSampler(sampler Sampler) (_err error) {
 	sampler_1 := C.cl_sampler(sampler)
 	res := C.clReleaseSampler(sampler_1)
@@ -2345,49 +2421,53 @@ func ReleaseSampler(sampler Sampler) (_err error) {
 }
 // Simplified binding for clGetSamplerInfo.
 //
-// value must be a pointer to the result variable.
-// The result variable must be typed according to param_name.
+// The type parameter must be typed according to param_name.
 // The Go types allowed for the C types are:
 //	- numerical/struct (e.g. cl_uint, size_t, cl_device_type): equivalent Go type (e.g. uint32, uint64, DeviceType)
 //	- string (e.g. char[]): Go string or []byte (either is accepted)
 //	- array (e.g. size_t[]): slice of equivalent Go type (e.g. []uint64)
 //
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetSamplerInfo.html
-func GetSamplerInfo(sampler Sampler, param_name SamplerInfo, param_value any) (_err error) {
+// API version 1.0 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetSamplerInfo.html.
+func GetSamplerInfo[T any](sampler Sampler, param_name SamplerInfo) (_value T, _err error) {
 	sampler_1 := C.cl_sampler(sampler)
+	maybeStripNullTermAndConvToString := func(v reflect.Value) reflect.Value {
+		if reflect.TypeFor[T]().Kind() == reflect.String {
+			return v.Slice(0, max(0, v.Len()-1)).Convert(reflect.TypeFor[T]())
+		}
+		return v
+	}
 	var pin runtime.Pinner
 	defer pin.Unpin()
 	var param_actual_size C.size_t
-	param_value_1 := reflect.ValueOf(param_value)
-	if param_value_1.Kind() != reflect.Pointer {
-		panic("expected param_value to be pointer to value, but got "+param_value_1.Kind().String())
-	}
-	isString := param_value_1.Elem().Kind() == reflect.String
-	if isString || param_value_1.Elem().Kind() == reflect.Slice {
-		param_value_1 = param_value_1.Elem() // need to take the address of the slice, not the pointer
-		C.clGetSamplerInfo(sampler_1, C.cl_sampler_info(param_name), 0, nil, &param_actual_size)
-		var elemTyp reflect.Type
-		if isString { elemTyp = reflect.TypeFor[byte]() } else { elemTyp = param_value_1.Type().Elem() }
-		sliceLen := int(param_actual_size)/int(elemTyp.Size())
-		newSlice := reflect.MakeSlice(reflect.SliceOf(elemTyp), sliceLen, sliceLen)
-		if isString {
-			outVal := param_value_1
-			param_value_1 = newSlice
-			defer func() {
-				outVal.Set(param_value_1.Convert(reflect.TypeFor[string]()))
-				if outVal.Len() > 0 && outVal.Index(outVal.Len()-1).IsZero() { outVal.Set(outVal.Slice(0, outVal.Len()-1)) } // strip null terminator
-			}()
-		} else {
-			param_value_1.Set(newSlice)
+	value_typ := reflect.TypeFor[T]()
+	var param_ptr unsafe.Pointer
+	var param_value reflect.Value
+	if value_typ.Kind() == reflect.Slice || value_typ.Kind() == reflect.String {
+		// Slice or string: Find actual size first.
+		C.clGetSamplerInfo(sampler_1, C.cl_sampler_info(param_name), 0, param_ptr, &param_actual_size)
+		sliceLen := int(param_actual_size)
+		if value_typ.Kind() == reflect.Slice {
+			sliceLen /= int(value_typ.Size())
+			param_value = reflect.New(value_typ).Elem()
+			param_value.Set(reflect.MakeSlice(value_typ, sliceLen, sliceLen))
+		} else { // string
+			param_value = reflect.New(reflect.TypeFor[[]byte]()).Elem()
+			param_value.Set(reflect.MakeSlice(reflect.TypeFor[[]byte](), sliceLen, sliceLen))
 		}
+		param_ptr = param_value.UnsafePointer()
 	} else {
-		param_actual_size = C.size_t(param_value_1.Type().Size())
+		param_value = reflect.New(value_typ).Elem()
+		param_ptr = param_value.Addr().UnsafePointer()
 	}
-	pin.Pin(param_value_1.UnsafePointer())
-	res := C.clGetSamplerInfo(sampler_1, C.cl_sampler_info(param_name), param_actual_size, param_value_1.UnsafePointer(), &param_actual_size)
-	return makeError(ErrorCode(res))
+	pin.Pin(param_ptr)
+	res := C.clGetSamplerInfo(sampler_1, C.cl_sampler_info(param_name), param_actual_size, param_ptr, &param_actual_size)
+	return maybeStripNullTermAndConvToString(param_value).Interface().(T), makeError(ErrorCode(res))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateProgramWithSource.html
+// API version 1.0 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateProgramWithSource.html.
 func CreateProgramWithSource(context Context, strings []string) (_res Program, _errcode_ret error) {
 	var errcode_ret_1 C.cl_int
 	strings_1, lengths_1, strings_1_fin := stringsToC(strings, true)
@@ -2399,7 +2479,9 @@ func CreateProgramWithSource(context Context, strings []string) (_res Program, _
 	res_1 := Program(res)
 	return res_1, makeError(ErrorCode(errcode_ret_1))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateProgramWithBinary.html
+// API version 1.0 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateProgramWithBinary.html.
 func CreateProgramWithBinary(context Context, device_list []DeviceId, binaries [][]byte, binary_status *int32) (_res Program, _errcode_ret error) {
 	var errcode_ret_1 C.cl_int
 	device_list_1, num_devices_1, device_list_fin := sliceToC(device_list)
@@ -2414,7 +2496,9 @@ func CreateProgramWithBinary(context Context, device_list []DeviceId, binaries [
 	res_1 := Program(res)
 	return res_1, makeError(ErrorCode(errcode_ret_1))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateProgramWithBuiltInKernels.html
+// API version 1.2 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateProgramWithBuiltInKernels.html.
 func CreateProgramWithBuiltInKernels(context Context, device_list []DeviceId, kernel_names string) (_res Program, _errcode_ret error) {
 	var errcode_ret_1 C.cl_int
 	device_list_1, num_devices_1, device_list_fin := sliceToC(device_list)
@@ -2428,7 +2512,9 @@ func CreateProgramWithBuiltInKernels(context Context, device_list []DeviceId, ke
 	res_1 := Program(res)
 	return res_1, makeError(ErrorCode(errcode_ret_1))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateProgramWithIL.html
+// API version 2.1 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateProgramWithIL.html.
 func CreateProgramWithIL(context Context, il unsafe.Pointer, length uint64) (_res Program, _errcode_ret error) {
 	var errcode_ret_1 C.cl_int
 	context_1 := C.cl_context(context)
@@ -2438,13 +2524,17 @@ func CreateProgramWithIL(context Context, il unsafe.Pointer, length uint64) (_re
 	res_1 := Program(res)
 	return res_1, makeError(ErrorCode(errcode_ret_1))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clRetainProgram.html
+// API version 1.0 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clRetainProgram.html.
 func RetainProgram(program Program) (_err error) {
 	program_1 := C.cl_program(program)
 	res := C.clRetainProgram(program_1)
 	return makeError(ErrorCode(res))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clReleaseProgram.html
+// API version 1.0 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clReleaseProgram.html.
 func ReleaseProgram(program Program) (_err error) {
 	program_1 := C.cl_program(program)
 	res := C.clReleaseProgram(program_1)
@@ -2457,7 +2547,9 @@ func go_cl_callback_clBuildProgram(program C.cl_program, user_data *C.void) {
 	defer callbackUnregister(uid)
 	(callbackFn(uid).(func(program Program)))(program_1)
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clBuildProgram.html
+// API version 1.0 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clBuildProgram.html.
 func BuildProgram(program Program, device_list []DeviceId, options string, pfn_notify func(program Program)) (_err error) {
 	options_1, options_1_fin := stringToC(options)
 	defer options_1_fin()
@@ -2527,7 +2619,9 @@ func go_cl_callback_clLinkProgram(program C.cl_program, user_data *C.void) {
 	defer callbackUnregister(uid)
 	(callbackFn(uid).(func(program Program)))(program_1)
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clLinkProgram.html
+// API version 1.2 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clLinkProgram.html.
 func LinkProgram(context Context, device_list []DeviceId, options string, input_programs []Program, pfn_notify func(program Program)) (_res Program, _errcode_ret error) {
 	var errcode_ret_1 C.cl_int
 	options_1, options_1_fin := stringToC(options)
@@ -2558,7 +2652,11 @@ func go_cl_callback_clSetProgramReleaseCallback(program C.cl_program, user_data 
 	defer callbackUnregister(uid)
 	(callbackFn(uid).(func(program Program)))(program_1)
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clSetProgramReleaseCallback.html
+// API version 2.2 and above.
+//
+// Deprecated: This function is deprecated in the current OpenCL version (see Khronos docs link below for details).
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clSetProgramReleaseCallback.html.
 func SetProgramReleaseCallback(program Program, pfn_notify func(program Program)) (_err error) {
 	program_1 := C.cl_program(program)
 	var callback_uid unsafe.Pointer
@@ -2570,7 +2668,9 @@ func SetProgramReleaseCallback(program Program, pfn_notify func(program Program)
 	res := C.clSetProgramReleaseCallback(program_1, callback, callback_uid)
 	return makeError(ErrorCode(res))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clSetProgramSpecializationConstant.html
+// API version 2.2 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clSetProgramSpecializationConstant.html.
 func SetProgramSpecializationConstant(program Program, spec_id uint32, spec_size uint64, spec_value unsafe.Pointer) (_err error) {
 	program_1 := C.cl_program(program)
 	spec_id_1 := C.cl_uint(spec_id)
@@ -2579,7 +2679,9 @@ func SetProgramSpecializationConstant(program Program, spec_id uint32, spec_size
 	res := C.clSetProgramSpecializationConstant(program_1, spec_id_1, spec_size_1, spec_value_1)
 	return makeError(ErrorCode(res))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clUnloadPlatformCompiler.html
+// API version 1.2 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clUnloadPlatformCompiler.html.
 func UnloadPlatformCompiler(platform PlatformId) (_err error) {
 	platform_1 := C.cl_platform_id(platform)
 	res := C.clUnloadPlatformCompiler(platform_1)
@@ -2587,94 +2689,100 @@ func UnloadPlatformCompiler(platform PlatformId) (_err error) {
 }
 // Simplified binding for clGetProgramInfo.
 //
-// value must be a pointer to the result variable.
-// The result variable must be typed according to param_name.
+// The type parameter must be typed according to param_name.
 // The Go types allowed for the C types are:
 //	- numerical/struct (e.g. cl_uint, size_t, cl_device_type): equivalent Go type (e.g. uint32, uint64, DeviceType)
 //	- string (e.g. char[]): Go string or []byte (either is accepted)
 //	- array (e.g. size_t[]): slice of equivalent Go type (e.g. []uint64)
 //
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetProgramInfo.html
-func GetProgramInfo(program Program, param_name ProgramInfo, param_value any) (_err error) {
+// API version 1.0 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetProgramInfo.html.
+func GetProgramInfo[T any](program Program, param_name ProgramInfo) (_value T, _err error) {
 	program_1 := C.cl_program(program)
+	maybeStripNullTermAndConvToString := func(v reflect.Value) reflect.Value {
+		if reflect.TypeFor[T]().Kind() == reflect.String {
+			return v.Slice(0, max(0, v.Len()-1)).Convert(reflect.TypeFor[T]())
+		}
+		return v
+	}
 	var pin runtime.Pinner
 	defer pin.Unpin()
 	var param_actual_size C.size_t
-	param_value_1 := reflect.ValueOf(param_value)
-	if param_value_1.Kind() != reflect.Pointer {
-		panic("expected param_value to be pointer to value, but got "+param_value_1.Kind().String())
-	}
-	isString := param_value_1.Elem().Kind() == reflect.String
-	if isString || param_value_1.Elem().Kind() == reflect.Slice {
-		param_value_1 = param_value_1.Elem() // need to take the address of the slice, not the pointer
-		C.clGetProgramInfo(program_1, C.cl_program_info(param_name), 0, nil, &param_actual_size)
-		var elemTyp reflect.Type
-		if isString { elemTyp = reflect.TypeFor[byte]() } else { elemTyp = param_value_1.Type().Elem() }
-		sliceLen := int(param_actual_size)/int(elemTyp.Size())
-		newSlice := reflect.MakeSlice(reflect.SliceOf(elemTyp), sliceLen, sliceLen)
-		if isString {
-			outVal := param_value_1
-			param_value_1 = newSlice
-			defer func() {
-				outVal.Set(param_value_1.Convert(reflect.TypeFor[string]()))
-				if outVal.Len() > 0 && outVal.Index(outVal.Len()-1).IsZero() { outVal.Set(outVal.Slice(0, outVal.Len()-1)) } // strip null terminator
-			}()
-		} else {
-			param_value_1.Set(newSlice)
+	value_typ := reflect.TypeFor[T]()
+	var param_ptr unsafe.Pointer
+	var param_value reflect.Value
+	if value_typ.Kind() == reflect.Slice || value_typ.Kind() == reflect.String {
+		// Slice or string: Find actual size first.
+		C.clGetProgramInfo(program_1, C.cl_program_info(param_name), 0, param_ptr, &param_actual_size)
+		sliceLen := int(param_actual_size)
+		if value_typ.Kind() == reflect.Slice {
+			sliceLen /= int(value_typ.Size())
+			param_value = reflect.New(value_typ).Elem()
+			param_value.Set(reflect.MakeSlice(value_typ, sliceLen, sliceLen))
+		} else { // string
+			param_value = reflect.New(reflect.TypeFor[[]byte]()).Elem()
+			param_value.Set(reflect.MakeSlice(reflect.TypeFor[[]byte](), sliceLen, sliceLen))
 		}
+		param_ptr = param_value.UnsafePointer()
 	} else {
-		param_actual_size = C.size_t(param_value_1.Type().Size())
+		param_value = reflect.New(value_typ).Elem()
+		param_ptr = param_value.Addr().UnsafePointer()
 	}
-	pin.Pin(param_value_1.UnsafePointer())
-	res := C.clGetProgramInfo(program_1, C.cl_program_info(param_name), param_actual_size, param_value_1.UnsafePointer(), &param_actual_size)
-	return makeError(ErrorCode(res))
+	pin.Pin(param_ptr)
+	res := C.clGetProgramInfo(program_1, C.cl_program_info(param_name), param_actual_size, param_ptr, &param_actual_size)
+	return maybeStripNullTermAndConvToString(param_value).Interface().(T), makeError(ErrorCode(res))
 }
 // Simplified binding for clGetProgramBuildInfo.
 //
-// value must be a pointer to the result variable.
-// The result variable must be typed according to param_name.
+// The type parameter must be typed according to param_name.
 // The Go types allowed for the C types are:
 //	- numerical/struct (e.g. cl_uint, size_t, cl_device_type): equivalent Go type (e.g. uint32, uint64, DeviceType)
 //	- string (e.g. char[]): Go string or []byte (either is accepted)
 //	- array (e.g. size_t[]): slice of equivalent Go type (e.g. []uint64)
 //
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetProgramBuildInfo.html
-func GetProgramBuildInfo(program Program, device DeviceId, param_name ProgramBuildInfo, param_value any) (_err error) {
+// API version 1.0 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetProgramBuildInfo.html.
+func GetProgramBuildInfo[T any](program Program, device DeviceId, param_name ProgramBuildInfo) (_value T, _err error) {
 	program_1 := C.cl_program(program)
 	device_1 := C.cl_device_id(device)
+	maybeStripNullTermAndConvToString := func(v reflect.Value) reflect.Value {
+		if reflect.TypeFor[T]().Kind() == reflect.String {
+			return v.Slice(0, max(0, v.Len()-1)).Convert(reflect.TypeFor[T]())
+		}
+		return v
+	}
 	var pin runtime.Pinner
 	defer pin.Unpin()
 	var param_actual_size C.size_t
-	param_value_1 := reflect.ValueOf(param_value)
-	if param_value_1.Kind() != reflect.Pointer {
-		panic("expected param_value to be pointer to value, but got "+param_value_1.Kind().String())
-	}
-	isString := param_value_1.Elem().Kind() == reflect.String
-	if isString || param_value_1.Elem().Kind() == reflect.Slice {
-		param_value_1 = param_value_1.Elem() // need to take the address of the slice, not the pointer
-		C.clGetProgramBuildInfo(program_1, device_1, C.cl_program_build_info(param_name), 0, nil, &param_actual_size)
-		var elemTyp reflect.Type
-		if isString { elemTyp = reflect.TypeFor[byte]() } else { elemTyp = param_value_1.Type().Elem() }
-		sliceLen := int(param_actual_size)/int(elemTyp.Size())
-		newSlice := reflect.MakeSlice(reflect.SliceOf(elemTyp), sliceLen, sliceLen)
-		if isString {
-			outVal := param_value_1
-			param_value_1 = newSlice
-			defer func() {
-				outVal.Set(param_value_1.Convert(reflect.TypeFor[string]()))
-				if outVal.Len() > 0 && outVal.Index(outVal.Len()-1).IsZero() { outVal.Set(outVal.Slice(0, outVal.Len()-1)) } // strip null terminator
-			}()
-		} else {
-			param_value_1.Set(newSlice)
+	value_typ := reflect.TypeFor[T]()
+	var param_ptr unsafe.Pointer
+	var param_value reflect.Value
+	if value_typ.Kind() == reflect.Slice || value_typ.Kind() == reflect.String {
+		// Slice or string: Find actual size first.
+		C.clGetProgramBuildInfo(program_1, device_1, C.cl_program_build_info(param_name), 0, param_ptr, &param_actual_size)
+		sliceLen := int(param_actual_size)
+		if value_typ.Kind() == reflect.Slice {
+			sliceLen /= int(value_typ.Size())
+			param_value = reflect.New(value_typ).Elem()
+			param_value.Set(reflect.MakeSlice(value_typ, sliceLen, sliceLen))
+		} else { // string
+			param_value = reflect.New(reflect.TypeFor[[]byte]()).Elem()
+			param_value.Set(reflect.MakeSlice(reflect.TypeFor[[]byte](), sliceLen, sliceLen))
 		}
+		param_ptr = param_value.UnsafePointer()
 	} else {
-		param_actual_size = C.size_t(param_value_1.Type().Size())
+		param_value = reflect.New(value_typ).Elem()
+		param_ptr = param_value.Addr().UnsafePointer()
 	}
-	pin.Pin(param_value_1.UnsafePointer())
-	res := C.clGetProgramBuildInfo(program_1, device_1, C.cl_program_build_info(param_name), param_actual_size, param_value_1.UnsafePointer(), &param_actual_size)
-	return makeError(ErrorCode(res))
+	pin.Pin(param_ptr)
+	res := C.clGetProgramBuildInfo(program_1, device_1, C.cl_program_build_info(param_name), param_actual_size, param_ptr, &param_actual_size)
+	return maybeStripNullTermAndConvToString(param_value).Interface().(T), makeError(ErrorCode(res))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateKernel.html
+// API version 1.0 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateKernel.html.
 func CreateKernel(program Program, kernel_name string) (_res Kernel, _errcode_ret error) {
 	var errcode_ret_1 C.cl_int
 	kernel_name_1, kernel_name_1_fin := stringToC(kernel_name)
@@ -2684,7 +2792,9 @@ func CreateKernel(program Program, kernel_name string) (_res Kernel, _errcode_re
 	res_1 := Kernel(res)
 	return res_1, makeError(ErrorCode(errcode_ret_1))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateKernelsInProgram.html
+// API version 1.0 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateKernelsInProgram.html.
 func CreateKernelsInProgram(program Program) (_kernels []Kernel, _err error) {
 	program_1 := C.cl_program(program)
 	var kernels_actual_len C.cl_uint
@@ -2695,7 +2805,9 @@ func CreateKernelsInProgram(program Program) (_kernels []Kernel, _err error) {
 	res := C.clCreateKernelsInProgram(program_1, C.cl_uint(num_kernels), (*C.cl_kernel)(kernels), nil)
 	return kernels_1, makeError(ErrorCode(res))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCloneKernel.html
+// API version 2.1 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCloneKernel.html.
 func CloneKernel(source_kernel Kernel) (_res Kernel, _errcode_ret error) {
 	var errcode_ret_1 C.cl_int
 	source_kernel_1 := C.cl_kernel(source_kernel)
@@ -2703,19 +2815,25 @@ func CloneKernel(source_kernel Kernel) (_res Kernel, _errcode_ret error) {
 	res_1 := Kernel(res)
 	return res_1, makeError(ErrorCode(errcode_ret_1))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clRetainKernel.html
+// API version 1.0 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clRetainKernel.html.
 func RetainKernel(kernel Kernel) (_err error) {
 	kernel_1 := C.cl_kernel(kernel)
 	res := C.clRetainKernel(kernel_1)
 	return makeError(ErrorCode(res))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clReleaseKernel.html
+// API version 1.0 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clReleaseKernel.html.
 func ReleaseKernel(kernel Kernel) (_err error) {
 	kernel_1 := C.cl_kernel(kernel)
 	res := C.clReleaseKernel(kernel_1)
 	return makeError(ErrorCode(res))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clSetKernelArg.html
+// API version 1.0 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clSetKernelArg.html.
 func SetKernelArg(kernel Kernel, arg_index uint32, arg_size uint64, arg_value unsafe.Pointer) (_err error) {
 	kernel_1 := C.cl_kernel(kernel)
 	arg_index_1 := C.cl_uint(arg_index)
@@ -2724,7 +2842,9 @@ func SetKernelArg(kernel Kernel, arg_index uint32, arg_size uint64, arg_value un
 	res := C.clSetKernelArg(kernel_1, arg_index_1, arg_size_1, arg_value_1)
 	return makeError(ErrorCode(res))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clSetKernelArgSVMPointer.html
+// API version 2.0 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clSetKernelArgSVMPointer.html.
 func SetKernelArgSVMPointer(kernel Kernel, arg_index uint32, arg_value unsafe.Pointer) (_err error) {
 	kernel_1 := C.cl_kernel(kernel)
 	arg_index_1 := C.cl_uint(arg_index)
@@ -2732,7 +2852,9 @@ func SetKernelArgSVMPointer(kernel Kernel, arg_index uint32, arg_value unsafe.Po
 	res := C.clSetKernelArgSVMPointer(kernel_1, arg_index_1, arg_value_1)
 	return makeError(ErrorCode(res))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clSetKernelExecInfo.html
+// API version 2.0 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clSetKernelExecInfo.html.
 func SetKernelExecInfo(kernel Kernel, param_name KernelExecInfo, param_value_size uint64, param_value unsafe.Pointer) (_err error) {
 	kernel_1 := C.cl_kernel(kernel)
 	param_name_1 := C.cl_kernel_exec_info(param_name)
@@ -2743,186 +2865,196 @@ func SetKernelExecInfo(kernel Kernel, param_name KernelExecInfo, param_value_siz
 }
 // Simplified binding for clGetKernelInfo.
 //
-// value must be a pointer to the result variable.
-// The result variable must be typed according to param_name.
+// The type parameter must be typed according to param_name.
 // The Go types allowed for the C types are:
 //	- numerical/struct (e.g. cl_uint, size_t, cl_device_type): equivalent Go type (e.g. uint32, uint64, DeviceType)
 //	- string (e.g. char[]): Go string or []byte (either is accepted)
 //	- array (e.g. size_t[]): slice of equivalent Go type (e.g. []uint64)
 //
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetKernelInfo.html
-func GetKernelInfo(kernel Kernel, param_name KernelInfo, param_value any) (_err error) {
+// API version 1.0 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetKernelInfo.html.
+func GetKernelInfo[T any](kernel Kernel, param_name KernelInfo) (_value T, _err error) {
 	kernel_1 := C.cl_kernel(kernel)
+	maybeStripNullTermAndConvToString := func(v reflect.Value) reflect.Value {
+		if reflect.TypeFor[T]().Kind() == reflect.String {
+			return v.Slice(0, max(0, v.Len()-1)).Convert(reflect.TypeFor[T]())
+		}
+		return v
+	}
 	var pin runtime.Pinner
 	defer pin.Unpin()
 	var param_actual_size C.size_t
-	param_value_1 := reflect.ValueOf(param_value)
-	if param_value_1.Kind() != reflect.Pointer {
-		panic("expected param_value to be pointer to value, but got "+param_value_1.Kind().String())
-	}
-	isString := param_value_1.Elem().Kind() == reflect.String
-	if isString || param_value_1.Elem().Kind() == reflect.Slice {
-		param_value_1 = param_value_1.Elem() // need to take the address of the slice, not the pointer
-		C.clGetKernelInfo(kernel_1, C.cl_kernel_info(param_name), 0, nil, &param_actual_size)
-		var elemTyp reflect.Type
-		if isString { elemTyp = reflect.TypeFor[byte]() } else { elemTyp = param_value_1.Type().Elem() }
-		sliceLen := int(param_actual_size)/int(elemTyp.Size())
-		newSlice := reflect.MakeSlice(reflect.SliceOf(elemTyp), sliceLen, sliceLen)
-		if isString {
-			outVal := param_value_1
-			param_value_1 = newSlice
-			defer func() {
-				outVal.Set(param_value_1.Convert(reflect.TypeFor[string]()))
-				if outVal.Len() > 0 && outVal.Index(outVal.Len()-1).IsZero() { outVal.Set(outVal.Slice(0, outVal.Len()-1)) } // strip null terminator
-			}()
-		} else {
-			param_value_1.Set(newSlice)
+	value_typ := reflect.TypeFor[T]()
+	var param_ptr unsafe.Pointer
+	var param_value reflect.Value
+	if value_typ.Kind() == reflect.Slice || value_typ.Kind() == reflect.String {
+		// Slice or string: Find actual size first.
+		C.clGetKernelInfo(kernel_1, C.cl_kernel_info(param_name), 0, param_ptr, &param_actual_size)
+		sliceLen := int(param_actual_size)
+		if value_typ.Kind() == reflect.Slice {
+			sliceLen /= int(value_typ.Size())
+			param_value = reflect.New(value_typ).Elem()
+			param_value.Set(reflect.MakeSlice(value_typ, sliceLen, sliceLen))
+		} else { // string
+			param_value = reflect.New(reflect.TypeFor[[]byte]()).Elem()
+			param_value.Set(reflect.MakeSlice(reflect.TypeFor[[]byte](), sliceLen, sliceLen))
 		}
+		param_ptr = param_value.UnsafePointer()
 	} else {
-		param_actual_size = C.size_t(param_value_1.Type().Size())
+		param_value = reflect.New(value_typ).Elem()
+		param_ptr = param_value.Addr().UnsafePointer()
 	}
-	pin.Pin(param_value_1.UnsafePointer())
-	res := C.clGetKernelInfo(kernel_1, C.cl_kernel_info(param_name), param_actual_size, param_value_1.UnsafePointer(), &param_actual_size)
-	return makeError(ErrorCode(res))
+	pin.Pin(param_ptr)
+	res := C.clGetKernelInfo(kernel_1, C.cl_kernel_info(param_name), param_actual_size, param_ptr, &param_actual_size)
+	return maybeStripNullTermAndConvToString(param_value).Interface().(T), makeError(ErrorCode(res))
 }
 // Simplified binding for clGetKernelArgInfo.
 //
-// value must be a pointer to the result variable.
-// The result variable must be typed according to param_name.
+// The type parameter must be typed according to param_name.
 // The Go types allowed for the C types are:
 //	- numerical/struct (e.g. cl_uint, size_t, cl_device_type): equivalent Go type (e.g. uint32, uint64, DeviceType)
 //	- string (e.g. char[]): Go string or []byte (either is accepted)
 //	- array (e.g. size_t[]): slice of equivalent Go type (e.g. []uint64)
 //
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetKernelArgInfo.html
-func GetKernelArgInfo(kernel Kernel, arg_indx uint32, param_name KernelArgInfo, param_value any) (_err error) {
+// API version 1.2 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetKernelArgInfo.html.
+func GetKernelArgInfo[T any](kernel Kernel, arg_indx uint32, param_name KernelArgInfo) (_value T, _err error) {
 	kernel_1 := C.cl_kernel(kernel)
 	arg_indx_1 := C.cl_uint(arg_indx)
+	maybeStripNullTermAndConvToString := func(v reflect.Value) reflect.Value {
+		if reflect.TypeFor[T]().Kind() == reflect.String {
+			return v.Slice(0, max(0, v.Len()-1)).Convert(reflect.TypeFor[T]())
+		}
+		return v
+	}
 	var pin runtime.Pinner
 	defer pin.Unpin()
 	var param_actual_size C.size_t
-	param_value_1 := reflect.ValueOf(param_value)
-	if param_value_1.Kind() != reflect.Pointer {
-		panic("expected param_value to be pointer to value, but got "+param_value_1.Kind().String())
-	}
-	isString := param_value_1.Elem().Kind() == reflect.String
-	if isString || param_value_1.Elem().Kind() == reflect.Slice {
-		param_value_1 = param_value_1.Elem() // need to take the address of the slice, not the pointer
-		C.clGetKernelArgInfo(kernel_1, arg_indx_1, C.cl_kernel_arg_info(param_name), 0, nil, &param_actual_size)
-		var elemTyp reflect.Type
-		if isString { elemTyp = reflect.TypeFor[byte]() } else { elemTyp = param_value_1.Type().Elem() }
-		sliceLen := int(param_actual_size)/int(elemTyp.Size())
-		newSlice := reflect.MakeSlice(reflect.SliceOf(elemTyp), sliceLen, sliceLen)
-		if isString {
-			outVal := param_value_1
-			param_value_1 = newSlice
-			defer func() {
-				outVal.Set(param_value_1.Convert(reflect.TypeFor[string]()))
-				if outVal.Len() > 0 && outVal.Index(outVal.Len()-1).IsZero() { outVal.Set(outVal.Slice(0, outVal.Len()-1)) } // strip null terminator
-			}()
-		} else {
-			param_value_1.Set(newSlice)
+	value_typ := reflect.TypeFor[T]()
+	var param_ptr unsafe.Pointer
+	var param_value reflect.Value
+	if value_typ.Kind() == reflect.Slice || value_typ.Kind() == reflect.String {
+		// Slice or string: Find actual size first.
+		C.clGetKernelArgInfo(kernel_1, arg_indx_1, C.cl_kernel_arg_info(param_name), 0, param_ptr, &param_actual_size)
+		sliceLen := int(param_actual_size)
+		if value_typ.Kind() == reflect.Slice {
+			sliceLen /= int(value_typ.Size())
+			param_value = reflect.New(value_typ).Elem()
+			param_value.Set(reflect.MakeSlice(value_typ, sliceLen, sliceLen))
+		} else { // string
+			param_value = reflect.New(reflect.TypeFor[[]byte]()).Elem()
+			param_value.Set(reflect.MakeSlice(reflect.TypeFor[[]byte](), sliceLen, sliceLen))
 		}
+		param_ptr = param_value.UnsafePointer()
 	} else {
-		param_actual_size = C.size_t(param_value_1.Type().Size())
+		param_value = reflect.New(value_typ).Elem()
+		param_ptr = param_value.Addr().UnsafePointer()
 	}
-	pin.Pin(param_value_1.UnsafePointer())
-	res := C.clGetKernelArgInfo(kernel_1, arg_indx_1, C.cl_kernel_arg_info(param_name), param_actual_size, param_value_1.UnsafePointer(), &param_actual_size)
-	return makeError(ErrorCode(res))
+	pin.Pin(param_ptr)
+	res := C.clGetKernelArgInfo(kernel_1, arg_indx_1, C.cl_kernel_arg_info(param_name), param_actual_size, param_ptr, &param_actual_size)
+	return maybeStripNullTermAndConvToString(param_value).Interface().(T), makeError(ErrorCode(res))
 }
 // Simplified binding for clGetKernelWorkGroupInfo.
 //
-// value must be a pointer to the result variable.
-// The result variable must be typed according to param_name.
+// The type parameter must be typed according to param_name.
 // The Go types allowed for the C types are:
 //	- numerical/struct (e.g. cl_uint, size_t, cl_device_type): equivalent Go type (e.g. uint32, uint64, DeviceType)
 //	- string (e.g. char[]): Go string or []byte (either is accepted)
 //	- array (e.g. size_t[]): slice of equivalent Go type (e.g. []uint64)
 //
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetKernelWorkGroupInfo.html
-func GetKernelWorkGroupInfo(kernel Kernel, device DeviceId, param_name KernelWorkGroupInfo, param_value any) (_err error) {
+// API version 1.0 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetKernelWorkGroupInfo.html.
+func GetKernelWorkGroupInfo[T any](kernel Kernel, device DeviceId, param_name KernelWorkGroupInfo) (_value T, _err error) {
 	kernel_1 := C.cl_kernel(kernel)
 	device_1 := C.cl_device_id(device)
+	maybeStripNullTermAndConvToString := func(v reflect.Value) reflect.Value {
+		if reflect.TypeFor[T]().Kind() == reflect.String {
+			return v.Slice(0, max(0, v.Len()-1)).Convert(reflect.TypeFor[T]())
+		}
+		return v
+	}
 	var pin runtime.Pinner
 	defer pin.Unpin()
 	var param_actual_size C.size_t
-	param_value_1 := reflect.ValueOf(param_value)
-	if param_value_1.Kind() != reflect.Pointer {
-		panic("expected param_value to be pointer to value, but got "+param_value_1.Kind().String())
-	}
-	isString := param_value_1.Elem().Kind() == reflect.String
-	if isString || param_value_1.Elem().Kind() == reflect.Slice {
-		param_value_1 = param_value_1.Elem() // need to take the address of the slice, not the pointer
-		C.clGetKernelWorkGroupInfo(kernel_1, device_1, C.cl_kernel_work_group_info(param_name), 0, nil, &param_actual_size)
-		var elemTyp reflect.Type
-		if isString { elemTyp = reflect.TypeFor[byte]() } else { elemTyp = param_value_1.Type().Elem() }
-		sliceLen := int(param_actual_size)/int(elemTyp.Size())
-		newSlice := reflect.MakeSlice(reflect.SliceOf(elemTyp), sliceLen, sliceLen)
-		if isString {
-			outVal := param_value_1
-			param_value_1 = newSlice
-			defer func() {
-				outVal.Set(param_value_1.Convert(reflect.TypeFor[string]()))
-				if outVal.Len() > 0 && outVal.Index(outVal.Len()-1).IsZero() { outVal.Set(outVal.Slice(0, outVal.Len()-1)) } // strip null terminator
-			}()
-		} else {
-			param_value_1.Set(newSlice)
+	value_typ := reflect.TypeFor[T]()
+	var param_ptr unsafe.Pointer
+	var param_value reflect.Value
+	if value_typ.Kind() == reflect.Slice || value_typ.Kind() == reflect.String {
+		// Slice or string: Find actual size first.
+		C.clGetKernelWorkGroupInfo(kernel_1, device_1, C.cl_kernel_work_group_info(param_name), 0, param_ptr, &param_actual_size)
+		sliceLen := int(param_actual_size)
+		if value_typ.Kind() == reflect.Slice {
+			sliceLen /= int(value_typ.Size())
+			param_value = reflect.New(value_typ).Elem()
+			param_value.Set(reflect.MakeSlice(value_typ, sliceLen, sliceLen))
+		} else { // string
+			param_value = reflect.New(reflect.TypeFor[[]byte]()).Elem()
+			param_value.Set(reflect.MakeSlice(reflect.TypeFor[[]byte](), sliceLen, sliceLen))
 		}
+		param_ptr = param_value.UnsafePointer()
 	} else {
-		param_actual_size = C.size_t(param_value_1.Type().Size())
+		param_value = reflect.New(value_typ).Elem()
+		param_ptr = param_value.Addr().UnsafePointer()
 	}
-	pin.Pin(param_value_1.UnsafePointer())
-	res := C.clGetKernelWorkGroupInfo(kernel_1, device_1, C.cl_kernel_work_group_info(param_name), param_actual_size, param_value_1.UnsafePointer(), &param_actual_size)
-	return makeError(ErrorCode(res))
+	pin.Pin(param_ptr)
+	res := C.clGetKernelWorkGroupInfo(kernel_1, device_1, C.cl_kernel_work_group_info(param_name), param_actual_size, param_ptr, &param_actual_size)
+	return maybeStripNullTermAndConvToString(param_value).Interface().(T), makeError(ErrorCode(res))
 }
 // Simplified binding for clGetKernelSubGroupInfo.
 //
-// value must be a pointer to the result variable.
-// The result variable must be typed according to param_name.
+// The type parameter must be typed according to param_name.
 // The Go types allowed for the C types are:
 //	- numerical/struct (e.g. cl_uint, size_t, cl_device_type): equivalent Go type (e.g. uint32, uint64, DeviceType)
 //	- string (e.g. char[]): Go string or []byte (either is accepted)
 //	- array (e.g. size_t[]): slice of equivalent Go type (e.g. []uint64)
 //
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetKernelSubGroupInfo.html
-func GetKernelSubGroupInfo(kernel Kernel, device DeviceId, param_name KernelSubGroupInfo, input_value_size uint64, input_value unsafe.Pointer, param_value any) (_err error) {
+// API version 2.1 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetKernelSubGroupInfo.html.
+func GetKernelSubGroupInfo[T any](kernel Kernel, device DeviceId, param_name KernelSubGroupInfo, input_value_size uint64, input_value unsafe.Pointer) (_value T, _err error) {
 	kernel_1 := C.cl_kernel(kernel)
 	device_1 := C.cl_device_id(device)
 	input_value_size_1 := C.size_t(input_value_size)
 	input_value_1 := input_value
+	maybeStripNullTermAndConvToString := func(v reflect.Value) reflect.Value {
+		if reflect.TypeFor[T]().Kind() == reflect.String {
+			return v.Slice(0, max(0, v.Len()-1)).Convert(reflect.TypeFor[T]())
+		}
+		return v
+	}
 	var pin runtime.Pinner
 	defer pin.Unpin()
 	var param_actual_size C.size_t
-	param_value_1 := reflect.ValueOf(param_value)
-	if param_value_1.Kind() != reflect.Pointer {
-		panic("expected param_value to be pointer to value, but got "+param_value_1.Kind().String())
-	}
-	isString := param_value_1.Elem().Kind() == reflect.String
-	if isString || param_value_1.Elem().Kind() == reflect.Slice {
-		param_value_1 = param_value_1.Elem() // need to take the address of the slice, not the pointer
-		C.clGetKernelSubGroupInfo(kernel_1, device_1, C.cl_kernel_sub_group_info(param_name), input_value_size_1, input_value_1, 0, nil, &param_actual_size)
-		var elemTyp reflect.Type
-		if isString { elemTyp = reflect.TypeFor[byte]() } else { elemTyp = param_value_1.Type().Elem() }
-		sliceLen := int(param_actual_size)/int(elemTyp.Size())
-		newSlice := reflect.MakeSlice(reflect.SliceOf(elemTyp), sliceLen, sliceLen)
-		if isString {
-			outVal := param_value_1
-			param_value_1 = newSlice
-			defer func() {
-				outVal.Set(param_value_1.Convert(reflect.TypeFor[string]()))
-				if outVal.Len() > 0 && outVal.Index(outVal.Len()-1).IsZero() { outVal.Set(outVal.Slice(0, outVal.Len()-1)) } // strip null terminator
-			}()
-		} else {
-			param_value_1.Set(newSlice)
+	value_typ := reflect.TypeFor[T]()
+	var param_ptr unsafe.Pointer
+	var param_value reflect.Value
+	if value_typ.Kind() == reflect.Slice || value_typ.Kind() == reflect.String {
+		// Slice or string: Find actual size first.
+		C.clGetKernelSubGroupInfo(kernel_1, device_1, C.cl_kernel_sub_group_info(param_name), input_value_size_1, input_value_1, 0, param_ptr, &param_actual_size)
+		sliceLen := int(param_actual_size)
+		if value_typ.Kind() == reflect.Slice {
+			sliceLen /= int(value_typ.Size())
+			param_value = reflect.New(value_typ).Elem()
+			param_value.Set(reflect.MakeSlice(value_typ, sliceLen, sliceLen))
+		} else { // string
+			param_value = reflect.New(reflect.TypeFor[[]byte]()).Elem()
+			param_value.Set(reflect.MakeSlice(reflect.TypeFor[[]byte](), sliceLen, sliceLen))
 		}
+		param_ptr = param_value.UnsafePointer()
 	} else {
-		param_actual_size = C.size_t(param_value_1.Type().Size())
+		param_value = reflect.New(value_typ).Elem()
+		param_ptr = param_value.Addr().UnsafePointer()
 	}
-	pin.Pin(param_value_1.UnsafePointer())
-	res := C.clGetKernelSubGroupInfo(kernel_1, device_1, C.cl_kernel_sub_group_info(param_name), input_value_size_1, input_value_1, param_actual_size, param_value_1.UnsafePointer(), &param_actual_size)
-	return makeError(ErrorCode(res))
+	pin.Pin(param_ptr)
+	res := C.clGetKernelSubGroupInfo(kernel_1, device_1, C.cl_kernel_sub_group_info(param_name), input_value_size_1, input_value_1, param_actual_size, param_ptr, &param_actual_size)
+	return maybeStripNullTermAndConvToString(param_value).Interface().(T), makeError(ErrorCode(res))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clWaitForEvents.html
+// API version 1.0 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clWaitForEvents.html.
 func WaitForEvents(event_list []Event) (_err error) {
 	event_list_1, num_events_1, event_list_fin := sliceToC(event_list)
 	defer event_list_fin()
@@ -2933,49 +3065,53 @@ func WaitForEvents(event_list []Event) (_err error) {
 }
 // Simplified binding for clGetEventInfo.
 //
-// value must be a pointer to the result variable.
-// The result variable must be typed according to param_name.
+// The type parameter must be typed according to param_name.
 // The Go types allowed for the C types are:
 //	- numerical/struct (e.g. cl_uint, size_t, cl_device_type): equivalent Go type (e.g. uint32, uint64, DeviceType)
 //	- string (e.g. char[]): Go string or []byte (either is accepted)
 //	- array (e.g. size_t[]): slice of equivalent Go type (e.g. []uint64)
 //
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetEventInfo.html
-func GetEventInfo(event Event, param_name EventInfo, param_value any) (_err error) {
+// API version 1.0 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetEventInfo.html.
+func GetEventInfo[T any](event Event, param_name EventInfo) (_value T, _err error) {
 	event_1 := C.cl_event(event)
+	maybeStripNullTermAndConvToString := func(v reflect.Value) reflect.Value {
+		if reflect.TypeFor[T]().Kind() == reflect.String {
+			return v.Slice(0, max(0, v.Len()-1)).Convert(reflect.TypeFor[T]())
+		}
+		return v
+	}
 	var pin runtime.Pinner
 	defer pin.Unpin()
 	var param_actual_size C.size_t
-	param_value_1 := reflect.ValueOf(param_value)
-	if param_value_1.Kind() != reflect.Pointer {
-		panic("expected param_value to be pointer to value, but got "+param_value_1.Kind().String())
-	}
-	isString := param_value_1.Elem().Kind() == reflect.String
-	if isString || param_value_1.Elem().Kind() == reflect.Slice {
-		param_value_1 = param_value_1.Elem() // need to take the address of the slice, not the pointer
-		C.clGetEventInfo(event_1, C.cl_event_info(param_name), 0, nil, &param_actual_size)
-		var elemTyp reflect.Type
-		if isString { elemTyp = reflect.TypeFor[byte]() } else { elemTyp = param_value_1.Type().Elem() }
-		sliceLen := int(param_actual_size)/int(elemTyp.Size())
-		newSlice := reflect.MakeSlice(reflect.SliceOf(elemTyp), sliceLen, sliceLen)
-		if isString {
-			outVal := param_value_1
-			param_value_1 = newSlice
-			defer func() {
-				outVal.Set(param_value_1.Convert(reflect.TypeFor[string]()))
-				if outVal.Len() > 0 && outVal.Index(outVal.Len()-1).IsZero() { outVal.Set(outVal.Slice(0, outVal.Len()-1)) } // strip null terminator
-			}()
-		} else {
-			param_value_1.Set(newSlice)
+	value_typ := reflect.TypeFor[T]()
+	var param_ptr unsafe.Pointer
+	var param_value reflect.Value
+	if value_typ.Kind() == reflect.Slice || value_typ.Kind() == reflect.String {
+		// Slice or string: Find actual size first.
+		C.clGetEventInfo(event_1, C.cl_event_info(param_name), 0, param_ptr, &param_actual_size)
+		sliceLen := int(param_actual_size)
+		if value_typ.Kind() == reflect.Slice {
+			sliceLen /= int(value_typ.Size())
+			param_value = reflect.New(value_typ).Elem()
+			param_value.Set(reflect.MakeSlice(value_typ, sliceLen, sliceLen))
+		} else { // string
+			param_value = reflect.New(reflect.TypeFor[[]byte]()).Elem()
+			param_value.Set(reflect.MakeSlice(reflect.TypeFor[[]byte](), sliceLen, sliceLen))
 		}
+		param_ptr = param_value.UnsafePointer()
 	} else {
-		param_actual_size = C.size_t(param_value_1.Type().Size())
+		param_value = reflect.New(value_typ).Elem()
+		param_ptr = param_value.Addr().UnsafePointer()
 	}
-	pin.Pin(param_value_1.UnsafePointer())
-	res := C.clGetEventInfo(event_1, C.cl_event_info(param_name), param_actual_size, param_value_1.UnsafePointer(), &param_actual_size)
-	return makeError(ErrorCode(res))
+	pin.Pin(param_ptr)
+	res := C.clGetEventInfo(event_1, C.cl_event_info(param_name), param_actual_size, param_ptr, &param_actual_size)
+	return maybeStripNullTermAndConvToString(param_value).Interface().(T), makeError(ErrorCode(res))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateUserEvent.html
+// API version 1.1 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateUserEvent.html.
 func CreateUserEvent(context Context) (_res Event, _errcode_ret error) {
 	var errcode_ret_1 C.cl_int
 	context_1 := C.cl_context(context)
@@ -2983,19 +3119,25 @@ func CreateUserEvent(context Context) (_res Event, _errcode_ret error) {
 	res_1 := Event(res)
 	return res_1, makeError(ErrorCode(errcode_ret_1))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clRetainEvent.html
+// API version 1.0 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clRetainEvent.html.
 func RetainEvent(event Event) (_err error) {
 	event_1 := C.cl_event(event)
 	res := C.clRetainEvent(event_1)
 	return makeError(ErrorCode(res))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clReleaseEvent.html
+// API version 1.0 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clReleaseEvent.html.
 func ReleaseEvent(event Event) (_err error) {
 	event_1 := C.cl_event(event)
 	res := C.clReleaseEvent(event_1)
 	return makeError(ErrorCode(res))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clSetUserEventStatus.html
+// API version 1.1 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clSetUserEventStatus.html.
 func SetUserEventStatus(event Event, execution_status int32) (_err error) {
 	event_1 := C.cl_event(event)
 	execution_status_1 := C.cl_int(execution_status)
@@ -3010,7 +3152,9 @@ func go_cl_callback_clSetEventCallback(event C.cl_event, event_command_status C.
 	defer callbackUnregister(uid)
 	(callbackFn(uid).(func(event Event, event_command_status int32)))(event_1, event_command_status_1)
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clSetEventCallback.html
+// API version 1.1 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clSetEventCallback.html.
 func SetEventCallback(event Event, command_exec_callback_type int32, pfn_notify func(event Event, event_command_status int32)) (_err error) {
 	event_1 := C.cl_event(event)
 	command_exec_callback_type_1 := C.cl_int(command_exec_callback_type)
@@ -3025,61 +3169,69 @@ func SetEventCallback(event Event, command_exec_callback_type int32, pfn_notify 
 }
 // Simplified binding for clGetEventProfilingInfo.
 //
-// value must be a pointer to the result variable.
-// The result variable must be typed according to param_name.
+// The type parameter must be typed according to param_name.
 // The Go types allowed for the C types are:
 //	- numerical/struct (e.g. cl_uint, size_t, cl_device_type): equivalent Go type (e.g. uint32, uint64, DeviceType)
 //	- string (e.g. char[]): Go string or []byte (either is accepted)
 //	- array (e.g. size_t[]): slice of equivalent Go type (e.g. []uint64)
 //
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetEventProfilingInfo.html
-func GetEventProfilingInfo(event Event, param_name ProfilingInfo, param_value any) (_err error) {
+// API version 1.0 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetEventProfilingInfo.html.
+func GetEventProfilingInfo[T any](event Event, param_name ProfilingInfo) (_value T, _err error) {
 	event_1 := C.cl_event(event)
+	maybeStripNullTermAndConvToString := func(v reflect.Value) reflect.Value {
+		if reflect.TypeFor[T]().Kind() == reflect.String {
+			return v.Slice(0, max(0, v.Len()-1)).Convert(reflect.TypeFor[T]())
+		}
+		return v
+	}
 	var pin runtime.Pinner
 	defer pin.Unpin()
 	var param_actual_size C.size_t
-	param_value_1 := reflect.ValueOf(param_value)
-	if param_value_1.Kind() != reflect.Pointer {
-		panic("expected param_value to be pointer to value, but got "+param_value_1.Kind().String())
-	}
-	isString := param_value_1.Elem().Kind() == reflect.String
-	if isString || param_value_1.Elem().Kind() == reflect.Slice {
-		param_value_1 = param_value_1.Elem() // need to take the address of the slice, not the pointer
-		C.clGetEventProfilingInfo(event_1, C.cl_profiling_info(param_name), 0, nil, &param_actual_size)
-		var elemTyp reflect.Type
-		if isString { elemTyp = reflect.TypeFor[byte]() } else { elemTyp = param_value_1.Type().Elem() }
-		sliceLen := int(param_actual_size)/int(elemTyp.Size())
-		newSlice := reflect.MakeSlice(reflect.SliceOf(elemTyp), sliceLen, sliceLen)
-		if isString {
-			outVal := param_value_1
-			param_value_1 = newSlice
-			defer func() {
-				outVal.Set(param_value_1.Convert(reflect.TypeFor[string]()))
-				if outVal.Len() > 0 && outVal.Index(outVal.Len()-1).IsZero() { outVal.Set(outVal.Slice(0, outVal.Len()-1)) } // strip null terminator
-			}()
-		} else {
-			param_value_1.Set(newSlice)
+	value_typ := reflect.TypeFor[T]()
+	var param_ptr unsafe.Pointer
+	var param_value reflect.Value
+	if value_typ.Kind() == reflect.Slice || value_typ.Kind() == reflect.String {
+		// Slice or string: Find actual size first.
+		C.clGetEventProfilingInfo(event_1, C.cl_profiling_info(param_name), 0, param_ptr, &param_actual_size)
+		sliceLen := int(param_actual_size)
+		if value_typ.Kind() == reflect.Slice {
+			sliceLen /= int(value_typ.Size())
+			param_value = reflect.New(value_typ).Elem()
+			param_value.Set(reflect.MakeSlice(value_typ, sliceLen, sliceLen))
+		} else { // string
+			param_value = reflect.New(reflect.TypeFor[[]byte]()).Elem()
+			param_value.Set(reflect.MakeSlice(reflect.TypeFor[[]byte](), sliceLen, sliceLen))
 		}
+		param_ptr = param_value.UnsafePointer()
 	} else {
-		param_actual_size = C.size_t(param_value_1.Type().Size())
+		param_value = reflect.New(value_typ).Elem()
+		param_ptr = param_value.Addr().UnsafePointer()
 	}
-	pin.Pin(param_value_1.UnsafePointer())
-	res := C.clGetEventProfilingInfo(event_1, C.cl_profiling_info(param_name), param_actual_size, param_value_1.UnsafePointer(), &param_actual_size)
-	return makeError(ErrorCode(res))
+	pin.Pin(param_ptr)
+	res := C.clGetEventProfilingInfo(event_1, C.cl_profiling_info(param_name), param_actual_size, param_ptr, &param_actual_size)
+	return maybeStripNullTermAndConvToString(param_value).Interface().(T), makeError(ErrorCode(res))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clFlush.html
+// API version 1.0 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clFlush.html.
 func Flush(command_queue CommandQueue) (_err error) {
 	command_queue_1 := C.cl_command_queue(command_queue)
 	res := C.clFlush(command_queue_1)
 	return makeError(ErrorCode(res))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clFinish.html
+// API version 1.0 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clFinish.html.
 func Finish(command_queue CommandQueue) (_err error) {
 	command_queue_1 := C.cl_command_queue(command_queue)
 	res := C.clFinish(command_queue_1)
 	return makeError(ErrorCode(res))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueReadBuffer.html
+// API version 1.0 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueReadBuffer.html.
 func EnqueueReadBuffer(command_queue CommandQueue, buffer Mem, blocking_read bool, offset uint64, size uint64, ptr unsafe.Pointer, event_wait_list []Event, event *Event) (_err error) {
 	event_wait_list_1, num_events_in_wait_list_1, event_wait_list_fin := sliceToC(event_wait_list)
 	defer event_wait_list_fin()
@@ -3095,7 +3247,9 @@ func EnqueueReadBuffer(command_queue CommandQueue, buffer Mem, blocking_read boo
 	res := C.clEnqueueReadBuffer(command_queue_1, buffer_1, blocking_read_1, offset_1, size_1, ptr_1, num_events_in_wait_list_2, event_wait_list_2, event_1)
 	return makeError(ErrorCode(res))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueReadBufferRect.html
+// API version 1.1 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueReadBufferRect.html.
 func EnqueueReadBufferRect(command_queue CommandQueue, buffer Mem, blocking_read bool, buffer_origin *uint64, host_origin *uint64, region *uint64, buffer_row_pitch uint64, buffer_slice_pitch uint64, host_row_pitch uint64, host_slice_pitch uint64, ptr unsafe.Pointer, event_wait_list []Event, event *Event) (_err error) {
 	event_wait_list_1, num_events_in_wait_list_1, event_wait_list_fin := sliceToC(event_wait_list)
 	defer event_wait_list_fin()
@@ -3116,7 +3270,9 @@ func EnqueueReadBufferRect(command_queue CommandQueue, buffer Mem, blocking_read
 	res := C.clEnqueueReadBufferRect(command_queue_1, buffer_1, blocking_read_1, buffer_origin_1, host_origin_1, region_1, buffer_row_pitch_1, buffer_slice_pitch_1, host_row_pitch_1, host_slice_pitch_1, ptr_1, num_events_in_wait_list_2, event_wait_list_2, event_1)
 	return makeError(ErrorCode(res))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueWriteBuffer.html
+// API version 1.0 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueWriteBuffer.html.
 func EnqueueWriteBuffer(command_queue CommandQueue, buffer Mem, blocking_write bool, offset uint64, size uint64, ptr unsafe.Pointer, event_wait_list []Event, event *Event) (_err error) {
 	event_wait_list_1, num_events_in_wait_list_1, event_wait_list_fin := sliceToC(event_wait_list)
 	defer event_wait_list_fin()
@@ -3132,7 +3288,9 @@ func EnqueueWriteBuffer(command_queue CommandQueue, buffer Mem, blocking_write b
 	res := C.clEnqueueWriteBuffer(command_queue_1, buffer_1, blocking_write_1, offset_1, size_1, ptr_1, num_events_in_wait_list_2, event_wait_list_2, event_1)
 	return makeError(ErrorCode(res))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueWriteBufferRect.html
+// API version 1.1 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueWriteBufferRect.html.
 func EnqueueWriteBufferRect(command_queue CommandQueue, buffer Mem, blocking_write bool, buffer_origin *uint64, host_origin *uint64, region *uint64, buffer_row_pitch uint64, buffer_slice_pitch uint64, host_row_pitch uint64, host_slice_pitch uint64, ptr unsafe.Pointer, event_wait_list []Event, event *Event) (_err error) {
 	event_wait_list_1, num_events_in_wait_list_1, event_wait_list_fin := sliceToC(event_wait_list)
 	defer event_wait_list_fin()
@@ -3153,7 +3311,9 @@ func EnqueueWriteBufferRect(command_queue CommandQueue, buffer Mem, blocking_wri
 	res := C.clEnqueueWriteBufferRect(command_queue_1, buffer_1, blocking_write_1, buffer_origin_1, host_origin_1, region_1, buffer_row_pitch_1, buffer_slice_pitch_1, host_row_pitch_1, host_slice_pitch_1, ptr_1, num_events_in_wait_list_2, event_wait_list_2, event_1)
 	return makeError(ErrorCode(res))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueFillBuffer.html
+// API version 1.2 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueFillBuffer.html.
 func EnqueueFillBuffer(command_queue CommandQueue, buffer Mem, pattern unsafe.Pointer, pattern_size uint64, offset uint64, size uint64, event_wait_list []Event, event *Event) (_err error) {
 	event_wait_list_1, num_events_in_wait_list_1, event_wait_list_fin := sliceToC(event_wait_list)
 	defer event_wait_list_fin()
@@ -3169,7 +3329,9 @@ func EnqueueFillBuffer(command_queue CommandQueue, buffer Mem, pattern unsafe.Po
 	res := C.clEnqueueFillBuffer(command_queue_1, buffer_1, pattern_1, pattern_size_1, offset_1, size_1, num_events_in_wait_list_2, event_wait_list_2, event_1)
 	return makeError(ErrorCode(res))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueCopyBuffer.html
+// API version 1.0 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueCopyBuffer.html.
 func EnqueueCopyBuffer(command_queue CommandQueue, src_buffer Mem, dst_buffer Mem, src_offset uint64, dst_offset uint64, size uint64, event_wait_list []Event, event *Event) (_err error) {
 	event_wait_list_1, num_events_in_wait_list_1, event_wait_list_fin := sliceToC(event_wait_list)
 	defer event_wait_list_fin()
@@ -3185,7 +3347,9 @@ func EnqueueCopyBuffer(command_queue CommandQueue, src_buffer Mem, dst_buffer Me
 	res := C.clEnqueueCopyBuffer(command_queue_1, src_buffer_1, dst_buffer_1, src_offset_1, dst_offset_1, size_1, num_events_in_wait_list_2, event_wait_list_2, event_1)
 	return makeError(ErrorCode(res))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueCopyBufferRect.html
+// API version 1.1 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueCopyBufferRect.html.
 func EnqueueCopyBufferRect(command_queue CommandQueue, src_buffer Mem, dst_buffer Mem, src_origin *uint64, dst_origin *uint64, region *uint64, src_row_pitch uint64, src_slice_pitch uint64, dst_row_pitch uint64, dst_slice_pitch uint64, event_wait_list []Event, event *Event) (_err error) {
 	event_wait_list_1, num_events_in_wait_list_1, event_wait_list_fin := sliceToC(event_wait_list)
 	defer event_wait_list_fin()
@@ -3205,7 +3369,9 @@ func EnqueueCopyBufferRect(command_queue CommandQueue, src_buffer Mem, dst_buffe
 	res := C.clEnqueueCopyBufferRect(command_queue_1, src_buffer_1, dst_buffer_1, src_origin_1, dst_origin_1, region_1, src_row_pitch_1, src_slice_pitch_1, dst_row_pitch_1, dst_slice_pitch_1, num_events_in_wait_list_2, event_wait_list_2, event_1)
 	return makeError(ErrorCode(res))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueReadImage.html
+// API version 1.0 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueReadImage.html.
 func EnqueueReadImage(command_queue CommandQueue, image Mem, blocking_read bool, origin *uint64, region *uint64, row_pitch uint64, slice_pitch uint64, ptr unsafe.Pointer, event_wait_list []Event, event *Event) (_err error) {
 	event_wait_list_1, num_events_in_wait_list_1, event_wait_list_fin := sliceToC(event_wait_list)
 	defer event_wait_list_fin()
@@ -3223,7 +3389,9 @@ func EnqueueReadImage(command_queue CommandQueue, image Mem, blocking_read bool,
 	res := C.clEnqueueReadImage(command_queue_1, image_1, blocking_read_1, origin_1, region_1, row_pitch_1, slice_pitch_1, ptr_1, num_events_in_wait_list_2, event_wait_list_2, event_1)
 	return makeError(ErrorCode(res))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueWriteImage.html
+// API version 1.0 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueWriteImage.html.
 func EnqueueWriteImage(command_queue CommandQueue, image Mem, blocking_write bool, origin *uint64, region *uint64, input_row_pitch uint64, input_slice_pitch uint64, ptr unsafe.Pointer, event_wait_list []Event, event *Event) (_err error) {
 	event_wait_list_1, num_events_in_wait_list_1, event_wait_list_fin := sliceToC(event_wait_list)
 	defer event_wait_list_fin()
@@ -3241,7 +3409,9 @@ func EnqueueWriteImage(command_queue CommandQueue, image Mem, blocking_write boo
 	res := C.clEnqueueWriteImage(command_queue_1, image_1, blocking_write_1, origin_1, region_1, input_row_pitch_1, input_slice_pitch_1, ptr_1, num_events_in_wait_list_2, event_wait_list_2, event_1)
 	return makeError(ErrorCode(res))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueFillImage.html
+// API version 1.2 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueFillImage.html.
 func EnqueueFillImage(command_queue CommandQueue, image Mem, fill_color unsafe.Pointer, origin *uint64, region *uint64, event_wait_list []Event, event *Event) (_err error) {
 	event_wait_list_1, num_events_in_wait_list_1, event_wait_list_fin := sliceToC(event_wait_list)
 	defer event_wait_list_fin()
@@ -3256,7 +3426,9 @@ func EnqueueFillImage(command_queue CommandQueue, image Mem, fill_color unsafe.P
 	res := C.clEnqueueFillImage(command_queue_1, image_1, fill_color_1, origin_1, region_1, num_events_in_wait_list_2, event_wait_list_2, event_1)
 	return makeError(ErrorCode(res))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueCopyImage.html
+// API version 1.0 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueCopyImage.html.
 func EnqueueCopyImage(command_queue CommandQueue, src_image Mem, dst_image Mem, src_origin *uint64, dst_origin *uint64, region *uint64, event_wait_list []Event, event *Event) (_err error) {
 	event_wait_list_1, num_events_in_wait_list_1, event_wait_list_fin := sliceToC(event_wait_list)
 	defer event_wait_list_fin()
@@ -3272,7 +3444,9 @@ func EnqueueCopyImage(command_queue CommandQueue, src_image Mem, dst_image Mem, 
 	res := C.clEnqueueCopyImage(command_queue_1, src_image_1, dst_image_1, src_origin_1, dst_origin_1, region_1, num_events_in_wait_list_2, event_wait_list_2, event_1)
 	return makeError(ErrorCode(res))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueCopyImageToBuffer.html
+// API version 1.0 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueCopyImageToBuffer.html.
 func EnqueueCopyImageToBuffer(command_queue CommandQueue, src_image Mem, dst_buffer Mem, src_origin *uint64, region *uint64, dst_offset uint64, event_wait_list []Event, event *Event) (_err error) {
 	event_wait_list_1, num_events_in_wait_list_1, event_wait_list_fin := sliceToC(event_wait_list)
 	defer event_wait_list_fin()
@@ -3288,7 +3462,9 @@ func EnqueueCopyImageToBuffer(command_queue CommandQueue, src_image Mem, dst_buf
 	res := C.clEnqueueCopyImageToBuffer(command_queue_1, src_image_1, dst_buffer_1, src_origin_1, region_1, dst_offset_1, num_events_in_wait_list_2, event_wait_list_2, event_1)
 	return makeError(ErrorCode(res))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueCopyBufferToImage.html
+// API version 1.0 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueCopyBufferToImage.html.
 func EnqueueCopyBufferToImage(command_queue CommandQueue, src_buffer Mem, dst_image Mem, src_offset uint64, dst_origin *uint64, region *uint64, event_wait_list []Event, event *Event) (_err error) {
 	event_wait_list_1, num_events_in_wait_list_1, event_wait_list_fin := sliceToC(event_wait_list)
 	defer event_wait_list_fin()
@@ -3304,7 +3480,9 @@ func EnqueueCopyBufferToImage(command_queue CommandQueue, src_buffer Mem, dst_im
 	res := C.clEnqueueCopyBufferToImage(command_queue_1, src_buffer_1, dst_image_1, src_offset_1, dst_origin_1, region_1, num_events_in_wait_list_2, event_wait_list_2, event_1)
 	return makeError(ErrorCode(res))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueMapBuffer.html
+// API version 1.0 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueMapBuffer.html.
 func EnqueueMapBuffer(command_queue CommandQueue, buffer Mem, blocking_map bool, map_flags MapFlags, offset uint64, size uint64, event_wait_list []Event, event *Event) (_res unsafe.Pointer, _errcode_ret error) {
 	var errcode_ret_1 C.cl_int
 	event_wait_list_1, num_events_in_wait_list_1, event_wait_list_fin := sliceToC(event_wait_list)
@@ -3322,7 +3500,9 @@ func EnqueueMapBuffer(command_queue CommandQueue, buffer Mem, blocking_map bool,
 	res_1 := (unsafe.Pointer)(res)
 	return res_1, makeError(ErrorCode(errcode_ret_1))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueMapImage.html
+// API version 1.0 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueMapImage.html.
 func EnqueueMapImage(command_queue CommandQueue, image Mem, blocking_map bool, map_flags MapFlags, origin *uint64, region *uint64, image_row_pitch *uint64, image_slice_pitch *uint64, event_wait_list []Event, event *Event) (_res unsafe.Pointer, _errcode_ret error) {
 	var errcode_ret_1 C.cl_int
 	event_wait_list_1, num_events_in_wait_list_1, event_wait_list_fin := sliceToC(event_wait_list)
@@ -3342,7 +3522,9 @@ func EnqueueMapImage(command_queue CommandQueue, image Mem, blocking_map bool, m
 	res_1 := (unsafe.Pointer)(res)
 	return res_1, makeError(ErrorCode(errcode_ret_1))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueUnmapMemObject.html
+// API version 1.0 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueUnmapMemObject.html.
 func EnqueueUnmapMemObject(command_queue CommandQueue, memobj Mem, mapped_ptr unsafe.Pointer, event_wait_list []Event, event *Event) (_err error) {
 	event_wait_list_1, num_events_in_wait_list_1, event_wait_list_fin := sliceToC(event_wait_list)
 	defer event_wait_list_fin()
@@ -3355,7 +3537,9 @@ func EnqueueUnmapMemObject(command_queue CommandQueue, memobj Mem, mapped_ptr un
 	res := C.clEnqueueUnmapMemObject(command_queue_1, memobj_1, mapped_ptr_1, num_events_in_wait_list_2, event_wait_list_2, event_1)
 	return makeError(ErrorCode(res))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueMigrateMemObjects.html
+// API version 1.2 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueMigrateMemObjects.html.
 func EnqueueMigrateMemObjects(command_queue CommandQueue, mem_objects []Mem, flags MemMigrationFlags, event_wait_list []Event, event *Event) (_err error) {
 	event_wait_list_1, num_events_in_wait_list_1, event_wait_list_fin := sliceToC(event_wait_list)
 	defer event_wait_list_fin()
@@ -3371,7 +3555,9 @@ func EnqueueMigrateMemObjects(command_queue CommandQueue, mem_objects []Mem, fla
 	res := C.clEnqueueMigrateMemObjects(command_queue_1, num_mem_objects_2, mem_objects_2, flags_1, num_events_in_wait_list_2, event_wait_list_2, event_1)
 	return makeError(ErrorCode(res))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueNDRangeKernel.html
+// API version 1.0 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueNDRangeKernel.html.
 func EnqueueNDRangeKernel(command_queue CommandQueue, kernel Kernel, work_dim uint32, global_work_offset []uint64, global_work_size []uint64, local_work_size []uint64, event_wait_list []Event, event *Event) (_err error) {
 	global_work_offset_1, _, global_work_offset_fin := sliceToC(global_work_offset)
 	defer global_work_offset_fin()
@@ -3393,7 +3579,9 @@ func EnqueueNDRangeKernel(command_queue CommandQueue, kernel Kernel, work_dim ui
 	res := C.clEnqueueNDRangeKernel(command_queue_1, kernel_1, work_dim_1, global_work_offset_2, global_work_size_2, local_work_size_2, num_events_in_wait_list_2, event_wait_list_2, event_1)
 	return makeError(ErrorCode(res))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueMarkerWithWaitList.html
+// API version 1.2 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueMarkerWithWaitList.html.
 func EnqueueMarkerWithWaitList(command_queue CommandQueue, event_wait_list []Event, event *Event) (_err error) {
 	event_wait_list_1, num_events_in_wait_list_1, event_wait_list_fin := sliceToC(event_wait_list)
 	defer event_wait_list_fin()
@@ -3404,7 +3592,9 @@ func EnqueueMarkerWithWaitList(command_queue CommandQueue, event_wait_list []Eve
 	res := C.clEnqueueMarkerWithWaitList(command_queue_1, num_events_in_wait_list_2, event_wait_list_2, event_1)
 	return makeError(ErrorCode(res))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueBarrierWithWaitList.html
+// API version 1.2 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueBarrierWithWaitList.html.
 func EnqueueBarrierWithWaitList(command_queue CommandQueue, event_wait_list []Event, event *Event) (_err error) {
 	event_wait_list_1, num_events_in_wait_list_1, event_wait_list_fin := sliceToC(event_wait_list)
 	defer event_wait_list_fin()
@@ -3424,7 +3614,9 @@ func go_cl_callback_clEnqueueSVMFree(queue C.cl_command_queue, num_svm_pointers 
 	defer callbackUnregister(uid)
 	(callbackFn(uid).(func(queue CommandQueue, num_svm_pointers uint32, svm_pointers unsafe.Pointer)))(queue_1, num_svm_pointers_1, svm_pointers_1)
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueSVMFree.html
+// API version 2.0 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueSVMFree.html.
 func EnqueueSVMFree(command_queue CommandQueue, num_svm_pointers uint32, svm_pointers unsafe.Pointer, pfn_free_func func(queue CommandQueue, num_svm_pointers uint32, svm_pointers unsafe.Pointer), event_wait_list []Event, event *Event) (_err error) {
 	event_wait_list_1, num_events_in_wait_list_1, event_wait_list_fin := sliceToC(event_wait_list)
 	defer event_wait_list_fin()
@@ -3443,7 +3635,9 @@ func EnqueueSVMFree(command_queue CommandQueue, num_svm_pointers uint32, svm_poi
 	res := C.clEnqueueSVMFree(command_queue_1, num_svm_pointers_1, svm_pointers_1, callback, callback_uid, num_events_in_wait_list_2, event_wait_list_2, event_1)
 	return makeError(ErrorCode(res))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueSVMMemcpy.html
+// API version 2.0 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueSVMMemcpy.html.
 func EnqueueSVMMemcpy(command_queue CommandQueue, blocking_copy bool, dst_ptr unsafe.Pointer, src_ptr unsafe.Pointer, size uint64, event_wait_list []Event, event *Event) (_err error) {
 	event_wait_list_1, num_events_in_wait_list_1, event_wait_list_fin := sliceToC(event_wait_list)
 	defer event_wait_list_fin()
@@ -3458,7 +3652,9 @@ func EnqueueSVMMemcpy(command_queue CommandQueue, blocking_copy bool, dst_ptr un
 	res := C.clEnqueueSVMMemcpy(command_queue_1, blocking_copy_1, dst_ptr_1, src_ptr_1, size_1, num_events_in_wait_list_2, event_wait_list_2, event_1)
 	return makeError(ErrorCode(res))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueSVMMemFill.html
+// API version 2.0 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueSVMMemFill.html.
 func EnqueueSVMMemFill(command_queue CommandQueue, svm_ptr unsafe.Pointer, pattern unsafe.Pointer, pattern_size uint64, size uint64, event_wait_list []Event, event *Event) (_err error) {
 	event_wait_list_1, num_events_in_wait_list_1, event_wait_list_fin := sliceToC(event_wait_list)
 	defer event_wait_list_fin()
@@ -3473,7 +3669,9 @@ func EnqueueSVMMemFill(command_queue CommandQueue, svm_ptr unsafe.Pointer, patte
 	res := C.clEnqueueSVMMemFill(command_queue_1, svm_ptr_1, pattern_1, pattern_size_1, size_1, num_events_in_wait_list_2, event_wait_list_2, event_1)
 	return makeError(ErrorCode(res))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueSVMMap.html
+// API version 2.0 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueSVMMap.html.
 func EnqueueSVMMap(command_queue CommandQueue, blocking_map bool, flags MapFlags, svm_ptr unsafe.Pointer, size uint64, event_wait_list []Event, event *Event) (_err error) {
 	event_wait_list_1, num_events_in_wait_list_1, event_wait_list_fin := sliceToC(event_wait_list)
 	defer event_wait_list_fin()
@@ -3488,7 +3686,9 @@ func EnqueueSVMMap(command_queue CommandQueue, blocking_map bool, flags MapFlags
 	res := C.clEnqueueSVMMap(command_queue_1, blocking_map_1, flags_1, svm_ptr_1, size_1, num_events_in_wait_list_2, event_wait_list_2, event_1)
 	return makeError(ErrorCode(res))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueSVMUnmap.html
+// API version 2.0 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueSVMUnmap.html.
 func EnqueueSVMUnmap(command_queue CommandQueue, svm_ptr unsafe.Pointer, event_wait_list []Event, event *Event) (_err error) {
 	event_wait_list_1, num_events_in_wait_list_1, event_wait_list_fin := sliceToC(event_wait_list)
 	defer event_wait_list_fin()
@@ -3500,7 +3700,9 @@ func EnqueueSVMUnmap(command_queue CommandQueue, svm_ptr unsafe.Pointer, event_w
 	res := C.clEnqueueSVMUnmap(command_queue_1, svm_ptr_1, num_events_in_wait_list_2, event_wait_list_2, event_1)
 	return makeError(ErrorCode(res))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueSVMMigrateMem.html
+// API version 2.1 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueSVMMigrateMem.html.
 func EnqueueSVMMigrateMem(command_queue CommandQueue, num_svm_pointers uint32, svm_pointers unsafe.Pointer, sizes *uint64, flags MemMigrationFlags, event_wait_list []Event, event *Event) (_err error) {
 	event_wait_list_1, num_events_in_wait_list_1, event_wait_list_fin := sliceToC(event_wait_list)
 	defer event_wait_list_fin()
@@ -3544,7 +3746,9 @@ func GetKernelSuggestedLocalWorkSize(command_queue CommandQueue, kernel Kernel, 
 	)
 	return suggested_local_work_size, makeError(ErrorCode(res))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetExtensionFunctionAddressForPlatform.html
+// API version 1.2 and above.
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetExtensionFunctionAddressForPlatform.html.
 func GetExtensionFunctionAddressForPlatform(platform PlatformId, func_name string) (_res unsafe.Pointer) {
 	func_name_1, func_name_1_fin := stringToC(func_name)
 	defer func_name_1_fin()
@@ -3553,7 +3757,11 @@ func GetExtensionFunctionAddressForPlatform(platform PlatformId, func_name strin
 	res_1 := (unsafe.Pointer)(res)
 	return res_1
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateImage2D.html
+// API version 1.1 and above.
+//
+// Deprecated: This function is deprecated in the current OpenCL version (see Khronos docs link below for details).
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateImage2D.html.
 func CreateImage2D(context Context, flags MemFlags, image_format *ImageFormat, image_width uint64, image_height uint64, image_row_pitch uint64, host_ptr unsafe.Pointer) (_res Mem, _errcode_ret error) {
 	var errcode_ret_1 C.cl_int
 	context_1 := C.cl_context(context)
@@ -3567,7 +3775,11 @@ func CreateImage2D(context Context, flags MemFlags, image_format *ImageFormat, i
 	res_1 := Mem(res)
 	return res_1, makeError(ErrorCode(errcode_ret_1))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateImage3D.html
+// API version 1.1 and above.
+//
+// Deprecated: This function is deprecated in the current OpenCL version (see Khronos docs link below for details).
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateImage3D.html.
 func CreateImage3D(context Context, flags MemFlags, image_format *ImageFormat, image_width uint64, image_height uint64, image_depth uint64, image_row_pitch uint64, image_slice_pitch uint64, host_ptr unsafe.Pointer) (_res Mem, _errcode_ret error) {
 	var errcode_ret_1 C.cl_int
 	context_1 := C.cl_context(context)
@@ -3583,14 +3795,22 @@ func CreateImage3D(context Context, flags MemFlags, image_format *ImageFormat, i
 	res_1 := Mem(res)
 	return res_1, makeError(ErrorCode(errcode_ret_1))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueMarker.html
+// API version 1.1 and above.
+//
+// Deprecated: This function is deprecated in the current OpenCL version (see Khronos docs link below for details).
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueMarker.html.
 func EnqueueMarker(command_queue CommandQueue, event *Event) (_err error) {
 	command_queue_1 := C.cl_command_queue(command_queue)
 	event_1 := (*C.cl_event)(event)
 	res := C.clEnqueueMarker(command_queue_1, event_1)
 	return makeError(ErrorCode(res))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueWaitForEvents.html
+// API version 1.1 and above.
+//
+// Deprecated: This function is deprecated in the current OpenCL version (see Khronos docs link below for details).
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueWaitForEvents.html.
 func EnqueueWaitForEvents(command_queue CommandQueue, event_list []Event) (_err error) {
 	event_list_1, num_events_1, event_list_fin := sliceToC(event_list)
 	defer event_list_fin()
@@ -3600,18 +3820,30 @@ func EnqueueWaitForEvents(command_queue CommandQueue, event_list []Event) (_err 
 	res := C.clEnqueueWaitForEvents(command_queue_1, num_events_2, event_list_2)
 	return makeError(ErrorCode(res))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueBarrier.html
+// API version 1.1 and above.
+//
+// Deprecated: This function is deprecated in the current OpenCL version (see Khronos docs link below for details).
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueBarrier.html.
 func EnqueueBarrier(command_queue CommandQueue) (_err error) {
 	command_queue_1 := C.cl_command_queue(command_queue)
 	res := C.clEnqueueBarrier(command_queue_1)
 	return makeError(ErrorCode(res))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clUnloadCompiler.html
+// API version 1.1 and above.
+//
+// Deprecated: This function is deprecated in the current OpenCL version (see Khronos docs link below for details).
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clUnloadCompiler.html.
 func UnloadCompiler() (_err error) {
 	res := C.clUnloadCompiler()
 	return makeError(ErrorCode(res))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetExtensionFunctionAddress.html
+// API version 1.1 and above.
+//
+// Deprecated: This function is deprecated in the current OpenCL version (see Khronos docs link below for details).
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetExtensionFunctionAddress.html.
 func GetExtensionFunctionAddress(func_name string) (_res unsafe.Pointer) {
 	func_name_1, func_name_1_fin := stringToC(func_name)
 	defer func_name_1_fin()
@@ -3619,7 +3851,11 @@ func GetExtensionFunctionAddress(func_name string) (_res unsafe.Pointer) {
 	res_1 := (unsafe.Pointer)(res)
 	return res_1
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateCommandQueue.html
+// API version 1.2 and above.
+//
+// Deprecated: This function is deprecated in the current OpenCL version (see Khronos docs link below for details).
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateCommandQueue.html.
 func CreateCommandQueue(context Context, device DeviceId, properties CommandQueueProperties) (_res CommandQueue, _errcode_ret error) {
 	var errcode_ret_1 C.cl_int
 	context_1 := C.cl_context(context)
@@ -3629,7 +3865,11 @@ func CreateCommandQueue(context Context, device DeviceId, properties CommandQueu
 	res_1 := CommandQueue(res)
 	return res_1, makeError(ErrorCode(errcode_ret_1))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateSampler.html
+// API version 1.2 and above.
+//
+// Deprecated: This function is deprecated in the current OpenCL version (see Khronos docs link below for details).
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateSampler.html.
 func CreateSampler(context Context, normalized_coords bool, addressing_mode AddressingMode, filter_mode FilterMode) (_res Sampler, _errcode_ret error) {
 	var errcode_ret_1 C.cl_int
 	context_1 := C.cl_context(context)
@@ -3640,7 +3880,11 @@ func CreateSampler(context Context, normalized_coords bool, addressing_mode Addr
 	res_1 := Sampler(res)
 	return res_1, makeError(ErrorCode(errcode_ret_1))
 }
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueTask.html
+// API version 1.2 and above.
+//
+// Deprecated: This function is deprecated in the current OpenCL version (see Khronos docs link below for details).
+//
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueTask.html.
 func EnqueueTask(command_queue CommandQueue, kernel Kernel, event_wait_list []Event, event *Event) (_err error) {
 	event_wait_list_1, num_events_in_wait_list_1, event_wait_list_fin := sliceToC(event_wait_list)
 	defer event_wait_list_fin()
@@ -3688,6 +3932,8 @@ func SetKernelArgValues(kernel Kernel, arg_offset uint32, values ...any) (_err e
 // (CUSTOM)
 // The [CreateBufferSlice] of [CreateBufferWithProperties].
 //
+// Note that passing a non-empty properties slice will call CreateBufferWithProperties, which is unavailable before OpenCL version 3.0.
+//
 func CreateBufferSliceWithProperties[E any, S ~[]E](context Context, properties []MemProperties, flags MemFlags, items S) (_res Mem, _errcode_ret error) {
 	if len(items) == 0 {
 		panic("items must be non-empty")
@@ -3706,8 +3952,6 @@ func CreateBufferSliceWithProperties[E any, S ~[]E](context Context, properties 
 		pin.Pin(ptr)
 	}
 	if len(properties) == 0 {
-		// BUG: CreateBufferWithProperties seems to cause a segfault on some system, so I'll just
-		// use regular CreateBuffer if possible until I have figured this out.
 		return CreateBuffer(context, flags, size, ptr)
 	} else {
 		return CreateBufferWithProperties(context, properties, flags, size, ptr)
@@ -3732,6 +3976,8 @@ func CreateBufferSlice[E any, S ~[]E](context Context, flags MemFlags, items S) 
 // (CUSTOM)
 // The [CreateBufferEmpty] of [CreateBufferWithProperties].
 //
+// Note that passing a non-empty properties slice will call CreateBufferWithProperties, which is unavailable before OpenCL version 3.0.
+//
 func CreateBufferEmptyWithProperties[E any](context Context, properties []MemProperties, flags MemFlags, num_items int) (_res Mem, _errcode_ret error) {
 	if flags&MEM_COPY_HOST_PTR != 0 || flags&MEM_USE_HOST_PTR != 0 {
 		panic("CreateBufferEmpty forbids flags MEM_COPY_HOST_PTR and MEM_USE_HOST_PTR (use CreateBufferSlice to create a buffer with initial contents)")
@@ -3739,8 +3985,6 @@ func CreateBufferEmptyWithProperties[E any](context Context, properties []MemPro
 	var zero E
 	itemSize := uint64(unsafe.Sizeof(zero))
 	if len(properties) == 0 {
-		// BUG: CreateBufferWithProperties seems to cause a segfault on some system, so I'll just
-		// use regular CreateBuffer if possible until I have figured this out.
 		return CreateBuffer(context, flags, uint64(num_items)*itemSize, nil)
 	} else {
 		return CreateBufferWithProperties(context, properties, flags, uint64(num_items)*itemSize, nil)

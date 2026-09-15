@@ -23,8 +23,8 @@ func main() {
 	}
 	platform := platforms[0]
 
-	var platformName string
-	if err := cl.GetPlatformInfo(platform, cl.PLATFORM_NAME, &platformName); err != nil {
+	platformName, err := cl.GetPlatformInfo[string](platform, cl.PLATFORM_NAME)
+	if err != nil {
 		log.Fatal(err)
 	}
 	fmt.Printf("Platform: %q\n", platformName)
@@ -38,8 +38,8 @@ func main() {
 	}
 	device := devices[0]
 
-	var deviceName string
-	if err := cl.GetDeviceInfo(device, cl.DEVICE_NAME, &deviceName); err != nil {
+	deviceName, err := cl.GetDeviceInfo[string](device, cl.DEVICE_NAME)
+	if err != nil {
 		log.Fatal(err)
 	}
 	fmt.Printf("Device: %q\n", deviceName)
@@ -65,8 +65,8 @@ func main() {
 	if err := cl.BuildProgram(prog, []cl.DeviceId{device}, "", func(program cl.Program) {
 		fmt.Println("Done building program (callback)")
 	}); err != nil {
-		var logStr string
-		if err := cl.GetProgramBuildInfo(prog, device, cl.PROGRAM_BUILD_LOG, &logStr); err != nil {
+		logStr, err := cl.GetProgramBuildInfo[string](prog, device, cl.PROGRAM_BUILD_LOG)
+		if err != nil {
 			log.Fatal(err)
 		}
 		log.Fatal(logStr)

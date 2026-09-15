@@ -139,6 +139,8 @@ func SetKernelArgValues(kernel Kernel, arg_offset uint32, values ...any) (_err e
 
 // The [CreateBufferSlice] of [CreateBufferWithProperties].
 //
+// Note that passing a non-empty properties slice will call CreateBufferWithProperties, which is unavailable before OpenCL version 3.0.
+//
 //bind:extra
 func CreateBufferSliceWithProperties[E any, S ~[]E](context Context, properties []MemProperties, flags MemFlags, items S) (_res Mem, _errcode_ret error) {
 	if len(items) == 0 {
@@ -158,8 +160,6 @@ func CreateBufferSliceWithProperties[E any, S ~[]E](context Context, properties 
 		pin.Pin(ptr)
 	}
 	if len(properties) == 0 {
-		// BUG: CreateBufferWithProperties seems to cause a segfault on some system, so I'll just
-		// use regular CreateBuffer if possible until I have figured this out.
 		return CreateBuffer(context, flags, size, ptr)
 	} else {
 		return CreateBufferWithProperties(context, properties, flags, size, ptr)
@@ -185,6 +185,8 @@ func CreateBufferSlice[E any, S ~[]E](context Context, flags MemFlags, items S) 
 
 // The [CreateBufferEmpty] of [CreateBufferWithProperties].
 //
+// Note that passing a non-empty properties slice will call CreateBufferWithProperties, which is unavailable before OpenCL version 3.0.
+//
 //bind:extra
 func CreateBufferEmptyWithProperties[E any](context Context, properties []MemProperties, flags MemFlags, num_items int) (_res Mem, _errcode_ret error) {
 	if flags&MEM_COPY_HOST_PTR != 0 || flags&MEM_USE_HOST_PTR != 0 {
@@ -193,8 +195,6 @@ func CreateBufferEmptyWithProperties[E any](context Context, properties []MemPro
 	var zero E
 	itemSize := uint64(unsafe.Sizeof(zero))
 	if len(properties) == 0 {
-		// BUG: CreateBufferWithProperties seems to cause a segfault on some system, so I'll just
-		// use regular CreateBuffer if possible until I have figured this out.
 		return CreateBuffer(context, flags, uint64(num_items)*itemSize, nil)
 	} else {
 		return CreateBufferWithProperties(context, properties, flags, uint64(num_items)*itemSize, nil)

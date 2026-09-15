@@ -1871,15 +1871,17 @@ func GetDeviceInfo[T any](device DeviceId, param_name DeviceInfo) (_value T, _er
 // API version 1.2 and above.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateSubDevices.html.
-func CreateSubDevices(in_device DeviceId, properties *DevicePartitionProperty, out_devices []DeviceId, num_devices_ret *uint32) (_err error) {
+func CreateSubDevices(in_device DeviceId, properties []DevicePartitionProperty, out_devices []DeviceId, num_devices_ret *uint32) (_err error) {
+	properties_1, properties_fin := sliceToCZeroTerm(properties)
+	defer properties_fin()
 	out_devices_1, num_devices_1, out_devices_fin := sliceToC(out_devices)
 	defer out_devices_fin()
 	in_device_1 := C.cl_device_id(in_device)
-	properties_1 := (*C.cl_device_partition_property)(properties)
+	properties_2 := (*C.cl_device_partition_property)(properties_1)
 	num_devices_2 := C.cl_uint(num_devices_1)
 	out_devices_2 := (*C.cl_device_id)(out_devices_1)
 	num_devices_ret_1 := (*C.cl_uint)(num_devices_ret)
-	res := C.clCreateSubDevices(in_device_1, properties_1, num_devices_2, out_devices_2, num_devices_ret_1)
+	res := C.clCreateSubDevices(in_device_1, properties_2, num_devices_2, out_devices_2, num_devices_ret_1)
 	return makeError(ErrorCode(res))
 }
 // API version 1.2 and above.
@@ -2208,14 +2210,16 @@ func CreateImage(context Context, flags MemFlags, image_format *ImageFormat, ima
 // API version 2.0 and above.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreatePipe.html.
-func CreatePipe(context Context, flags MemFlags, pipe_packet_size uint32, pipe_max_packets uint32, properties *PipeProperties) (_res Mem, _errcode_ret error) {
+func CreatePipe(context Context, flags MemFlags, pipe_packet_size uint32, pipe_max_packets uint32, properties []PipeProperties) (_res Mem, _errcode_ret error) {
 	var errcode_ret_1 C.cl_int
+	properties_1, properties_fin := sliceToCZeroTerm(properties)
+	defer properties_fin()
 	context_1 := C.cl_context(context)
 	flags_1 := C.cl_mem_flags(flags)
 	pipe_packet_size_1 := C.cl_uint(pipe_packet_size)
 	pipe_max_packets_1 := C.cl_uint(pipe_max_packets)
-	properties_1 := (*C.cl_pipe_properties)(properties)
-	res := C.clCreatePipe(context_1, flags_1, pipe_packet_size_1, pipe_max_packets_1, properties_1, &errcode_ret_1)
+	properties_2 := (*C.cl_pipe_properties)(properties_1)
+	res := C.clCreatePipe(context_1, flags_1, pipe_packet_size_1, pipe_max_packets_1, properties_2, &errcode_ret_1)
 	res_1 := Mem(res)
 	return res_1, makeError(ErrorCode(errcode_ret_1))
 }
@@ -2556,22 +2560,37 @@ func CreateProgramWithSource(context Context, strings []string) (_res Program, _
 	res_1 := Program(res)
 	return res_1, makeError(ErrorCode(errcode_ret_1))
 }
-// API version 1.0 and above.
-//
-// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateProgramWithBinary.html.
-func CreateProgramWithBinary(context Context, device_list []DeviceId, binaries [][]byte, binary_status *int32) (_res Program, _errcode_ret error) {
+// See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateProgramWithBinary.html
+func CreateProgramWithBinary(context Context, device_list []DeviceId, binaries [][]byte, out_binary_status []error) (_res Program, _errcode_ret error) {
+	if out_binary_status != nil && len(out_binary_status) != len(binaries) {
+		panic("if out_binary_status is supplied, len(out_binary_status) must be equal to len(binaries)")
+	}
+
 	var errcode_ret_1 C.cl_int
 	device_list_1, num_devices_1, device_list_fin := sliceToC(device_list)
 	defer device_list_fin()
 	binaries_1, lengths_1, binaries_1_fin := byteSlicesToC(binaries)
 	defer binaries_1_fin()
+
+	var binary_status []C.cl_int
+	if out_binary_status != nil {
+		binary_status = make([]C.cl_int, len(out_binary_status))
+	}
+	binary_status_1, _, binary_status_1_fin := sliceToC(binary_status)
+	defer binary_status_1_fin()
+
 	context_1 := C.cl_context(context)
 	num_devices_2 := C.cl_uint(num_devices_1)
 	device_list_2 := (*C.cl_device_id)(device_list_1)
-	binary_status_1 := (*C.cl_int)(binary_status)
-	res := C.clCreateProgramWithBinary(context_1, num_devices_2, device_list_2, lengths_1, binaries_1, binary_status_1, &errcode_ret_1)
-	res_1 := Program(res)
-	return res_1, makeError(ErrorCode(errcode_ret_1))
+	res := C.clCreateProgramWithBinary(context_1, num_devices_2, device_list_2, lengths_1, binaries_1, (*C.cl_int)(binary_status_1), &errcode_ret_1)
+
+	if out_binary_status != nil {
+		for s, i := range binary_status {
+			out_binary_status[i] = makeError(ErrorCode(s))
+		}
+	}
+
+	return Program(res), makeError(ErrorCode(errcode_ret_1))
 }
 // API version 1.2 and above.
 //

@@ -102,6 +102,39 @@ func CompileProgram(program Program, device_list []DeviceId, options string, inp
 	return makeError(ErrorCode(res))
 }
 
+//bind:clCreateProgramWithBinary
+func CreateProgramWithBinary(context Context, device_list []DeviceId, binaries [][]byte, out_binary_status []error) (_res Program, _errcode_ret error) {
+	if out_binary_status != nil && len(out_binary_status) != len(binaries) {
+		panic("if out_binary_status is supplied, len(out_binary_status) must be equal to len(binaries)")
+	}
+
+	var errcode_ret_1 C.cl_int
+	device_list_1, num_devices_1, device_list_fin := sliceToC(device_list)
+	defer device_list_fin()
+	binaries_1, lengths_1, binaries_1_fin := byteSlicesToC(binaries)
+	defer binaries_1_fin()
+
+	var binary_status []C.cl_int
+	if out_binary_status != nil {
+		binary_status = make([]C.cl_int, len(out_binary_status))
+	}
+	binary_status_1, _, binary_status_1_fin := sliceToC(binary_status)
+	defer binary_status_1_fin()
+
+	context_1 := C.cl_context(context)
+	num_devices_2 := C.cl_uint(num_devices_1)
+	device_list_2 := (*C.cl_device_id)(device_list_1)
+	res := C.clCreateProgramWithBinary(context_1, num_devices_2, device_list_2, lengths_1, binaries_1, (*C.cl_int)(binary_status_1), &errcode_ret_1)
+
+	if out_binary_status != nil {
+		for s, i := range binary_status {
+			out_binary_status[i] = makeError(ErrorCode(s))
+		}
+	}
+
+	return Program(res), makeError(ErrorCode(errcode_ret_1))
+}
+
 // Sets a kernel arg using a value.
 //
 //bind:extra

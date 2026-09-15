@@ -416,13 +416,8 @@ class CallbackHint:
     unregister: Literal["first_call"]
 
 CALLBACK_HINTS: dict[str, CallbackHint] = {
-    r"clSetContextDestructorCallback": CallbackHint("first_call"),
-    r"clMemObjectDestructorCallback": CallbackHint("first_call"),
-    r"clBuildProgram": CallbackHint("first_call"),
-    r"clLinkProgram": CallbackHint("first_call"),
-    r"clSetContextDestructorCallback": CallbackHint("first_call"),
-    r"clSetMemObjectDestructorCallback": CallbackHint("first_call"),
-    r"clSetProgramReleaseCallback": CallbackHint("first_call"),
+    r"cl(Build|Link)Program": CallbackHint("first_call"),
+    r"clSet\w+(Destructor|Release)Callback": CallbackHint("first_call"),
 }
 
 @dataclass
@@ -551,7 +546,7 @@ SLICE_HINTS = {
     r"clGetPlatformIDs": [SliceHint("platforms", "num_entries", "num_platforms")],
     r"clGetDeviceIDs": [SliceHint("devices", "num_entries", "num_devices")],
     r"clEnqueueNDRangeKernel": [SliceHint("global_work_offset"), SliceHint("global_work_size"), SliceHint("local_work_size")],
-    r"clCreate((?!Sampler)\w+WithProperties|SubDevice|Context|ContextFromType)": [SliceHint("properties", zero_term_array=True)],
+    r"clCreate((?!Sampler)\w+WithProperties|SubDevices|Context|ContextFromType|Pipe)": [SliceHint("properties", zero_term_array=True)],
     r"clCreateSamplerWithProperties": [SliceHint("sampler_properties", zero_term_array=True)],
     r"clCreateSubDevices": [SliceHint("out_devices", "num_devices")],
     r"clCreateContext": [SliceHint("devices", "num_devices")],

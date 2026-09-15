@@ -914,8 +914,11 @@ def generate_bindings(dstdir: str, go_prelude: str, headers: list[str], custom_b
                 hdr = f.read()
 
             o.write("// Typedefs\n\n")
-            typedefs = [m["name"] for m in
-                re.finditer(r"^typedef [^\n{}]+ (?P<name>cl_[a-z0-9_]+);", hdr, re.MULTILINE)]
+            typedef_typs: dict[str, str] = {}
+            typedefs: list[str] = []
+            for m in re.finditer(r"^typedef\s+(?P<typ>(struct )?\w+( \*)?)\s+(?P<name>cl_\w+);", hdr, re.MULTILINE):
+                typedefs.append(m["name"])
+                typedef_typs[m["name"]] = m["typ"]
             for name in typedefs:
                 if name in ctx.typs:
                     continue
@@ -971,7 +974,7 @@ def generate_bindings(dstdir: str, go_prelude: str, headers: list[str], custom_b
                     if enum.ctyp in ("cl_version", "cl_bool"):
                         continue
                     o.write(f"func (v {enum.gotyp}) String() string {{\n")
-                    if enum.ctyp.endswith("_flags"):
+                    if enum.ctyp in typedef_typs and typedef_typs[enum.ctyp] == "cl_bitfield":
                         o.write(f"\tvar s strings.Builder\n")
                         o.write("\tadd := func(v string) {\n")
                         o.write("\t\tif s.Len() != 0 { s.WriteByte('|') }\n")

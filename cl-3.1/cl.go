@@ -1083,15 +1083,19 @@ func (v PlatformInfo) String() string {
 	}
 }
 func (v DeviceType) String() string {
-	switch v {
-	case DEVICE_TYPE_DEFAULT: return "DEVICE_TYPE_DEFAULT"
-	case DEVICE_TYPE_CPU: return "DEVICE_TYPE_CPU"
-	case DEVICE_TYPE_GPU: return "DEVICE_TYPE_GPU"
-	case DEVICE_TYPE_ACCELERATOR: return "DEVICE_TYPE_ACCELERATOR"
-	case DEVICE_TYPE_CUSTOM: return "DEVICE_TYPE_CUSTOM"
-	case DEVICE_TYPE_ALL: return "DEVICE_TYPE_ALL"
-	default: return fmt.Sprintf("UNKNOWN (%d)", v)
+	var s strings.Builder
+	add := func(v string) {
+		if s.Len() != 0 { s.WriteByte('|') }
+		s.WriteString(v)
 	}
+	if v&DEVICE_TYPE_DEFAULT != 0 { add("DEVICE_TYPE_DEFAULT"); v &^= DEVICE_TYPE_DEFAULT }
+	if v&DEVICE_TYPE_CPU != 0 { add("DEVICE_TYPE_CPU"); v &^= DEVICE_TYPE_CPU }
+	if v&DEVICE_TYPE_GPU != 0 { add("DEVICE_TYPE_GPU"); v &^= DEVICE_TYPE_GPU }
+	if v&DEVICE_TYPE_ACCELERATOR != 0 { add("DEVICE_TYPE_ACCELERATOR"); v &^= DEVICE_TYPE_ACCELERATOR }
+	if v&DEVICE_TYPE_CUSTOM != 0 { add("DEVICE_TYPE_CUSTOM"); v &^= DEVICE_TYPE_CUSTOM }
+	if v&DEVICE_TYPE_ALL != 0 { add("DEVICE_TYPE_ALL"); v &^= DEVICE_TYPE_ALL }
+	if v != 0 { add(fmt.Sprintf("UNKNOWN(0x%016x)", uint64(v))) }
+	return s.String()
 }
 func (v DeviceInfo) String() string {
 	switch v {
@@ -1218,17 +1222,21 @@ func (v DeviceInfo) String() string {
 	}
 }
 func (v DeviceFpConfig) String() string {
-	switch v {
-	case FP_DENORM: return "FP_DENORM"
-	case FP_INF_NAN: return "FP_INF_NAN"
-	case FP_ROUND_TO_NEAREST: return "FP_ROUND_TO_NEAREST"
-	case FP_ROUND_TO_ZERO: return "FP_ROUND_TO_ZERO"
-	case FP_ROUND_TO_INF: return "FP_ROUND_TO_INF"
-	case FP_FMA: return "FP_FMA"
-	case FP_SOFT_FLOAT: return "FP_SOFT_FLOAT"
-	case FP_CORRECTLY_ROUNDED_DIVIDE_SQRT: return "FP_CORRECTLY_ROUNDED_DIVIDE_SQRT"
-	default: return fmt.Sprintf("UNKNOWN (%d)", v)
+	var s strings.Builder
+	add := func(v string) {
+		if s.Len() != 0 { s.WriteByte('|') }
+		s.WriteString(v)
 	}
+	if v&FP_DENORM != 0 { add("FP_DENORM"); v &^= FP_DENORM }
+	if v&FP_INF_NAN != 0 { add("FP_INF_NAN"); v &^= FP_INF_NAN }
+	if v&FP_ROUND_TO_NEAREST != 0 { add("FP_ROUND_TO_NEAREST"); v &^= FP_ROUND_TO_NEAREST }
+	if v&FP_ROUND_TO_ZERO != 0 { add("FP_ROUND_TO_ZERO"); v &^= FP_ROUND_TO_ZERO }
+	if v&FP_ROUND_TO_INF != 0 { add("FP_ROUND_TO_INF"); v &^= FP_ROUND_TO_INF }
+	if v&FP_FMA != 0 { add("FP_FMA"); v &^= FP_FMA }
+	if v&FP_SOFT_FLOAT != 0 { add("FP_SOFT_FLOAT"); v &^= FP_SOFT_FLOAT }
+	if v&FP_CORRECTLY_ROUNDED_DIVIDE_SQRT != 0 { add("FP_CORRECTLY_ROUNDED_DIVIDE_SQRT"); v &^= FP_CORRECTLY_ROUNDED_DIVIDE_SQRT }
+	if v != 0 { add(fmt.Sprintf("UNKNOWN(0x%016x)", uint64(v))) }
+	return s.String()
 }
 func (v DeviceMemCacheType) String() string {
 	switch v {
@@ -1246,20 +1254,28 @@ func (v DeviceLocalMemType) String() string {
 	}
 }
 func (v DeviceExecCapabilities) String() string {
-	switch v {
-	case EXEC_KERNEL: return "EXEC_KERNEL"
-	case EXEC_NATIVE_KERNEL: return "EXEC_NATIVE_KERNEL"
-	default: return fmt.Sprintf("UNKNOWN (%d)", v)
+	var s strings.Builder
+	add := func(v string) {
+		if s.Len() != 0 { s.WriteByte('|') }
+		s.WriteString(v)
 	}
+	if v&EXEC_KERNEL != 0 { add("EXEC_KERNEL"); v &^= EXEC_KERNEL }
+	if v&EXEC_NATIVE_KERNEL != 0 { add("EXEC_NATIVE_KERNEL"); v &^= EXEC_NATIVE_KERNEL }
+	if v != 0 { add(fmt.Sprintf("UNKNOWN(0x%016x)", uint64(v))) }
+	return s.String()
 }
 func (v CommandQueueProperties) String() string {
-	switch v {
-	case QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE: return "QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE"
-	case QUEUE_PROFILING_ENABLE: return "QUEUE_PROFILING_ENABLE"
-	case QUEUE_ON_DEVICE: return "QUEUE_ON_DEVICE"
-	case QUEUE_ON_DEVICE_DEFAULT: return "QUEUE_ON_DEVICE_DEFAULT"
-	default: return fmt.Sprintf("UNKNOWN (%d)", v)
+	var s strings.Builder
+	add := func(v string) {
+		if s.Len() != 0 { s.WriteByte('|') }
+		s.WriteString(v)
 	}
+	if v&QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE != 0 { add("QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE"); v &^= QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE }
+	if v&QUEUE_PROFILING_ENABLE != 0 { add("QUEUE_PROFILING_ENABLE"); v &^= QUEUE_PROFILING_ENABLE }
+	if v&QUEUE_ON_DEVICE != 0 { add("QUEUE_ON_DEVICE"); v &^= QUEUE_ON_DEVICE }
+	if v&QUEUE_ON_DEVICE_DEFAULT != 0 { add("QUEUE_ON_DEVICE_DEFAULT"); v &^= QUEUE_ON_DEVICE_DEFAULT }
+	if v != 0 { add(fmt.Sprintf("UNKNOWN(0x%016x)", uint64(v))) }
+	return s.String()
 }
 func (v ContextInfo) String() string {
 	switch v {
@@ -1287,24 +1303,32 @@ func (v DevicePartitionProperty) String() string {
 	}
 }
 func (v DeviceAffinityDomain) String() string {
-	switch v {
-	case DEVICE_AFFINITY_DOMAIN_NUMA: return "DEVICE_AFFINITY_DOMAIN_NUMA"
-	case DEVICE_AFFINITY_DOMAIN_L4_CACHE: return "DEVICE_AFFINITY_DOMAIN_L4_CACHE"
-	case DEVICE_AFFINITY_DOMAIN_L3_CACHE: return "DEVICE_AFFINITY_DOMAIN_L3_CACHE"
-	case DEVICE_AFFINITY_DOMAIN_L2_CACHE: return "DEVICE_AFFINITY_DOMAIN_L2_CACHE"
-	case DEVICE_AFFINITY_DOMAIN_L1_CACHE: return "DEVICE_AFFINITY_DOMAIN_L1_CACHE"
-	case DEVICE_AFFINITY_DOMAIN_NEXT_PARTITIONABLE: return "DEVICE_AFFINITY_DOMAIN_NEXT_PARTITIONABLE"
-	default: return fmt.Sprintf("UNKNOWN (%d)", v)
+	var s strings.Builder
+	add := func(v string) {
+		if s.Len() != 0 { s.WriteByte('|') }
+		s.WriteString(v)
 	}
+	if v&DEVICE_AFFINITY_DOMAIN_NUMA != 0 { add("DEVICE_AFFINITY_DOMAIN_NUMA"); v &^= DEVICE_AFFINITY_DOMAIN_NUMA }
+	if v&DEVICE_AFFINITY_DOMAIN_L4_CACHE != 0 { add("DEVICE_AFFINITY_DOMAIN_L4_CACHE"); v &^= DEVICE_AFFINITY_DOMAIN_L4_CACHE }
+	if v&DEVICE_AFFINITY_DOMAIN_L3_CACHE != 0 { add("DEVICE_AFFINITY_DOMAIN_L3_CACHE"); v &^= DEVICE_AFFINITY_DOMAIN_L3_CACHE }
+	if v&DEVICE_AFFINITY_DOMAIN_L2_CACHE != 0 { add("DEVICE_AFFINITY_DOMAIN_L2_CACHE"); v &^= DEVICE_AFFINITY_DOMAIN_L2_CACHE }
+	if v&DEVICE_AFFINITY_DOMAIN_L1_CACHE != 0 { add("DEVICE_AFFINITY_DOMAIN_L1_CACHE"); v &^= DEVICE_AFFINITY_DOMAIN_L1_CACHE }
+	if v&DEVICE_AFFINITY_DOMAIN_NEXT_PARTITIONABLE != 0 { add("DEVICE_AFFINITY_DOMAIN_NEXT_PARTITIONABLE"); v &^= DEVICE_AFFINITY_DOMAIN_NEXT_PARTITIONABLE }
+	if v != 0 { add(fmt.Sprintf("UNKNOWN(0x%016x)", uint64(v))) }
+	return s.String()
 }
 func (v DeviceSvmCapabilities) String() string {
-	switch v {
-	case DEVICE_SVM_COARSE_GRAIN_BUFFER: return "DEVICE_SVM_COARSE_GRAIN_BUFFER"
-	case DEVICE_SVM_FINE_GRAIN_BUFFER: return "DEVICE_SVM_FINE_GRAIN_BUFFER"
-	case DEVICE_SVM_FINE_GRAIN_SYSTEM: return "DEVICE_SVM_FINE_GRAIN_SYSTEM"
-	case DEVICE_SVM_ATOMICS: return "DEVICE_SVM_ATOMICS"
-	default: return fmt.Sprintf("UNKNOWN (%d)", v)
+	var s strings.Builder
+	add := func(v string) {
+		if s.Len() != 0 { s.WriteByte('|') }
+		s.WriteString(v)
 	}
+	if v&DEVICE_SVM_COARSE_GRAIN_BUFFER != 0 { add("DEVICE_SVM_COARSE_GRAIN_BUFFER"); v &^= DEVICE_SVM_COARSE_GRAIN_BUFFER }
+	if v&DEVICE_SVM_FINE_GRAIN_BUFFER != 0 { add("DEVICE_SVM_FINE_GRAIN_BUFFER"); v &^= DEVICE_SVM_FINE_GRAIN_BUFFER }
+	if v&DEVICE_SVM_FINE_GRAIN_SYSTEM != 0 { add("DEVICE_SVM_FINE_GRAIN_SYSTEM"); v &^= DEVICE_SVM_FINE_GRAIN_SYSTEM }
+	if v&DEVICE_SVM_ATOMICS != 0 { add("DEVICE_SVM_ATOMICS"); v &^= DEVICE_SVM_ATOMICS }
+	if v != 0 { add(fmt.Sprintf("UNKNOWN(0x%016x)", uint64(v))) }
+	return s.String()
 }
 func (v CommandQueueInfo) String() string {
 	switch v {
@@ -1576,14 +1600,18 @@ func (v KernelArgAccessQualifier) String() string {
 	}
 }
 func (v KernelArgTypeQualifier) String() string {
-	switch v {
-	case KERNEL_ARG_TYPE_NONE: return "KERNEL_ARG_TYPE_NONE"
-	case KERNEL_ARG_TYPE_CONST: return "KERNEL_ARG_TYPE_CONST"
-	case KERNEL_ARG_TYPE_RESTRICT: return "KERNEL_ARG_TYPE_RESTRICT"
-	case KERNEL_ARG_TYPE_VOLATILE: return "KERNEL_ARG_TYPE_VOLATILE"
-	case KERNEL_ARG_TYPE_PIPE: return "KERNEL_ARG_TYPE_PIPE"
-	default: return fmt.Sprintf("UNKNOWN (%d)", v)
+	var s strings.Builder
+	add := func(v string) {
+		if s.Len() != 0 { s.WriteByte('|') }
+		s.WriteString(v)
 	}
+	if v&KERNEL_ARG_TYPE_NONE != 0 { add("KERNEL_ARG_TYPE_NONE"); v &^= KERNEL_ARG_TYPE_NONE }
+	if v&KERNEL_ARG_TYPE_CONST != 0 { add("KERNEL_ARG_TYPE_CONST"); v &^= KERNEL_ARG_TYPE_CONST }
+	if v&KERNEL_ARG_TYPE_RESTRICT != 0 { add("KERNEL_ARG_TYPE_RESTRICT"); v &^= KERNEL_ARG_TYPE_RESTRICT }
+	if v&KERNEL_ARG_TYPE_VOLATILE != 0 { add("KERNEL_ARG_TYPE_VOLATILE"); v &^= KERNEL_ARG_TYPE_VOLATILE }
+	if v&KERNEL_ARG_TYPE_PIPE != 0 { add("KERNEL_ARG_TYPE_PIPE"); v &^= KERNEL_ARG_TYPE_PIPE }
+	if v != 0 { add(fmt.Sprintf("UNKNOWN(0x%016x)", uint64(v))) }
+	return s.String()
 }
 func (v KernelWorkGroupInfo) String() string {
 	switch v {
@@ -1676,23 +1704,31 @@ func (v ProfilingInfo) String() string {
 	}
 }
 func (v DeviceAtomicCapabilities) String() string {
-	switch v {
-	case DEVICE_ATOMIC_ORDER_RELAXED: return "DEVICE_ATOMIC_ORDER_RELAXED"
-	case DEVICE_ATOMIC_ORDER_ACQ_REL: return "DEVICE_ATOMIC_ORDER_ACQ_REL"
-	case DEVICE_ATOMIC_ORDER_SEQ_CST: return "DEVICE_ATOMIC_ORDER_SEQ_CST"
-	case DEVICE_ATOMIC_SCOPE_WORK_ITEM: return "DEVICE_ATOMIC_SCOPE_WORK_ITEM"
-	case DEVICE_ATOMIC_SCOPE_WORK_GROUP: return "DEVICE_ATOMIC_SCOPE_WORK_GROUP"
-	case DEVICE_ATOMIC_SCOPE_DEVICE: return "DEVICE_ATOMIC_SCOPE_DEVICE"
-	case DEVICE_ATOMIC_SCOPE_ALL_DEVICES: return "DEVICE_ATOMIC_SCOPE_ALL_DEVICES"
-	default: return fmt.Sprintf("UNKNOWN (%d)", v)
+	var s strings.Builder
+	add := func(v string) {
+		if s.Len() != 0 { s.WriteByte('|') }
+		s.WriteString(v)
 	}
+	if v&DEVICE_ATOMIC_ORDER_RELAXED != 0 { add("DEVICE_ATOMIC_ORDER_RELAXED"); v &^= DEVICE_ATOMIC_ORDER_RELAXED }
+	if v&DEVICE_ATOMIC_ORDER_ACQ_REL != 0 { add("DEVICE_ATOMIC_ORDER_ACQ_REL"); v &^= DEVICE_ATOMIC_ORDER_ACQ_REL }
+	if v&DEVICE_ATOMIC_ORDER_SEQ_CST != 0 { add("DEVICE_ATOMIC_ORDER_SEQ_CST"); v &^= DEVICE_ATOMIC_ORDER_SEQ_CST }
+	if v&DEVICE_ATOMIC_SCOPE_WORK_ITEM != 0 { add("DEVICE_ATOMIC_SCOPE_WORK_ITEM"); v &^= DEVICE_ATOMIC_SCOPE_WORK_ITEM }
+	if v&DEVICE_ATOMIC_SCOPE_WORK_GROUP != 0 { add("DEVICE_ATOMIC_SCOPE_WORK_GROUP"); v &^= DEVICE_ATOMIC_SCOPE_WORK_GROUP }
+	if v&DEVICE_ATOMIC_SCOPE_DEVICE != 0 { add("DEVICE_ATOMIC_SCOPE_DEVICE"); v &^= DEVICE_ATOMIC_SCOPE_DEVICE }
+	if v&DEVICE_ATOMIC_SCOPE_ALL_DEVICES != 0 { add("DEVICE_ATOMIC_SCOPE_ALL_DEVICES"); v &^= DEVICE_ATOMIC_SCOPE_ALL_DEVICES }
+	if v != 0 { add(fmt.Sprintf("UNKNOWN(0x%016x)", uint64(v))) }
+	return s.String()
 }
 func (v DeviceDeviceEnqueueCapabilities) String() string {
-	switch v {
-	case DEVICE_QUEUE_SUPPORTED: return "DEVICE_QUEUE_SUPPORTED"
-	case DEVICE_QUEUE_REPLACEABLE_DEFAULT: return "DEVICE_QUEUE_REPLACEABLE_DEFAULT"
-	default: return fmt.Sprintf("UNKNOWN (%d)", v)
+	var s strings.Builder
+	add := func(v string) {
+		if s.Len() != 0 { s.WriteByte('|') }
+		s.WriteString(v)
 	}
+	if v&DEVICE_QUEUE_SUPPORTED != 0 { add("DEVICE_QUEUE_SUPPORTED"); v &^= DEVICE_QUEUE_SUPPORTED }
+	if v&DEVICE_QUEUE_REPLACEABLE_DEFAULT != 0 { add("DEVICE_QUEUE_REPLACEABLE_DEFAULT"); v &^= DEVICE_QUEUE_REPLACEABLE_DEFAULT }
+	if v != 0 { add(fmt.Sprintf("UNKNOWN(0x%016x)", uint64(v))) }
+	return s.String()
 }
 func (v KhronosVendorId) String() string {
 	switch v {
@@ -1701,11 +1737,15 @@ func (v KhronosVendorId) String() string {
 	}
 }
 func (v DeviceIntegerDotProductCapabilities) String() string {
-	switch v {
-	case DEVICE_INTEGER_DOT_PRODUCT_INPUT_4x8BIT_PACKED: return "DEVICE_INTEGER_DOT_PRODUCT_INPUT_4x8BIT_PACKED"
-	case DEVICE_INTEGER_DOT_PRODUCT_INPUT_4x8BIT: return "DEVICE_INTEGER_DOT_PRODUCT_INPUT_4x8BIT"
-	default: return fmt.Sprintf("UNKNOWN (%d)", v)
+	var s strings.Builder
+	add := func(v string) {
+		if s.Len() != 0 { s.WriteByte('|') }
+		s.WriteString(v)
 	}
+	if v&DEVICE_INTEGER_DOT_PRODUCT_INPUT_4x8BIT_PACKED != 0 { add("DEVICE_INTEGER_DOT_PRODUCT_INPUT_4x8BIT_PACKED"); v &^= DEVICE_INTEGER_DOT_PRODUCT_INPUT_4x8BIT_PACKED }
+	if v&DEVICE_INTEGER_DOT_PRODUCT_INPUT_4x8BIT != 0 { add("DEVICE_INTEGER_DOT_PRODUCT_INPUT_4x8BIT"); v &^= DEVICE_INTEGER_DOT_PRODUCT_INPUT_4x8BIT }
+	if v != 0 { add(fmt.Sprintf("UNKNOWN(0x%016x)", uint64(v))) }
+	return s.String()
 }
 
 // Functions

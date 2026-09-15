@@ -1320,24 +1320,34 @@ func (v CommandQueueInfo) String() string {
 }
 func (v MemFlags) String() string {
 	var s strings.Builder
-	if v&MEM_READ_WRITE != 0 { if s.Len() != 0 { s.WriteByte('|') }; s.WriteString("MEM_READ_WRITE") }
-	if v&MEM_WRITE_ONLY != 0 { if s.Len() != 0 { s.WriteByte('|') }; s.WriteString("MEM_WRITE_ONLY") }
-	if v&MEM_READ_ONLY != 0 { if s.Len() != 0 { s.WriteByte('|') }; s.WriteString("MEM_READ_ONLY") }
-	if v&MEM_USE_HOST_PTR != 0 { if s.Len() != 0 { s.WriteByte('|') }; s.WriteString("MEM_USE_HOST_PTR") }
-	if v&MEM_ALLOC_HOST_PTR != 0 { if s.Len() != 0 { s.WriteByte('|') }; s.WriteString("MEM_ALLOC_HOST_PTR") }
-	if v&MEM_COPY_HOST_PTR != 0 { if s.Len() != 0 { s.WriteByte('|') }; s.WriteString("MEM_COPY_HOST_PTR") }
-	if v&MEM_HOST_WRITE_ONLY != 0 { if s.Len() != 0 { s.WriteByte('|') }; s.WriteString("MEM_HOST_WRITE_ONLY") }
-	if v&MEM_HOST_READ_ONLY != 0 { if s.Len() != 0 { s.WriteByte('|') }; s.WriteString("MEM_HOST_READ_ONLY") }
-	if v&MEM_HOST_NO_ACCESS != 0 { if s.Len() != 0 { s.WriteByte('|') }; s.WriteString("MEM_HOST_NO_ACCESS") }
-	if v&MEM_SVM_FINE_GRAIN_BUFFER != 0 { if s.Len() != 0 { s.WriteByte('|') }; s.WriteString("MEM_SVM_FINE_GRAIN_BUFFER") }
-	if v&MEM_SVM_ATOMICS != 0 { if s.Len() != 0 { s.WriteByte('|') }; s.WriteString("MEM_SVM_ATOMICS") }
-	if v&MEM_KERNEL_READ_AND_WRITE != 0 { if s.Len() != 0 { s.WriteByte('|') }; s.WriteString("MEM_KERNEL_READ_AND_WRITE") }
+	add := func(v string) {
+		if s.Len() != 0 { s.WriteByte('|') }
+		s.WriteString(v)
+	}
+	if v&MEM_READ_WRITE != 0 { add("MEM_READ_WRITE"); v &^= MEM_READ_WRITE }
+	if v&MEM_WRITE_ONLY != 0 { add("MEM_WRITE_ONLY"); v &^= MEM_WRITE_ONLY }
+	if v&MEM_READ_ONLY != 0 { add("MEM_READ_ONLY"); v &^= MEM_READ_ONLY }
+	if v&MEM_USE_HOST_PTR != 0 { add("MEM_USE_HOST_PTR"); v &^= MEM_USE_HOST_PTR }
+	if v&MEM_ALLOC_HOST_PTR != 0 { add("MEM_ALLOC_HOST_PTR"); v &^= MEM_ALLOC_HOST_PTR }
+	if v&MEM_COPY_HOST_PTR != 0 { add("MEM_COPY_HOST_PTR"); v &^= MEM_COPY_HOST_PTR }
+	if v&MEM_HOST_WRITE_ONLY != 0 { add("MEM_HOST_WRITE_ONLY"); v &^= MEM_HOST_WRITE_ONLY }
+	if v&MEM_HOST_READ_ONLY != 0 { add("MEM_HOST_READ_ONLY"); v &^= MEM_HOST_READ_ONLY }
+	if v&MEM_HOST_NO_ACCESS != 0 { add("MEM_HOST_NO_ACCESS"); v &^= MEM_HOST_NO_ACCESS }
+	if v&MEM_SVM_FINE_GRAIN_BUFFER != 0 { add("MEM_SVM_FINE_GRAIN_BUFFER"); v &^= MEM_SVM_FINE_GRAIN_BUFFER }
+	if v&MEM_SVM_ATOMICS != 0 { add("MEM_SVM_ATOMICS"); v &^= MEM_SVM_ATOMICS }
+	if v&MEM_KERNEL_READ_AND_WRITE != 0 { add("MEM_KERNEL_READ_AND_WRITE"); v &^= MEM_KERNEL_READ_AND_WRITE }
+	if v != 0 { add(fmt.Sprintf("UNKNOWN(0x%016x)", uint64(v))) }
 	return s.String()
 }
 func (v MemMigrationFlags) String() string {
 	var s strings.Builder
-	if v&MIGRATE_MEM_OBJECT_HOST != 0 { if s.Len() != 0 { s.WriteByte('|') }; s.WriteString("MIGRATE_MEM_OBJECT_HOST") }
-	if v&MIGRATE_MEM_OBJECT_CONTENT_UNDEFINED != 0 { if s.Len() != 0 { s.WriteByte('|') }; s.WriteString("MIGRATE_MEM_OBJECT_CONTENT_UNDEFINED") }
+	add := func(v string) {
+		if s.Len() != 0 { s.WriteByte('|') }
+		s.WriteString(v)
+	}
+	if v&MIGRATE_MEM_OBJECT_HOST != 0 { add("MIGRATE_MEM_OBJECT_HOST"); v &^= MIGRATE_MEM_OBJECT_HOST }
+	if v&MIGRATE_MEM_OBJECT_CONTENT_UNDEFINED != 0 { add("MIGRATE_MEM_OBJECT_CONTENT_UNDEFINED"); v &^= MIGRATE_MEM_OBJECT_CONTENT_UNDEFINED }
+	if v != 0 { add(fmt.Sprintf("UNKNOWN(0x%016x)", uint64(v))) }
 	return s.String()
 }
 func (v ChannelOrder) String() string {
@@ -1471,9 +1481,14 @@ func (v SamplerInfo) String() string {
 }
 func (v MapFlags) String() string {
 	var s strings.Builder
-	if v&MAP_READ != 0 { if s.Len() != 0 { s.WriteByte('|') }; s.WriteString("MAP_READ") }
-	if v&MAP_WRITE != 0 { if s.Len() != 0 { s.WriteByte('|') }; s.WriteString("MAP_WRITE") }
-	if v&MAP_WRITE_INVALIDATE_REGION != 0 { if s.Len() != 0 { s.WriteByte('|') }; s.WriteString("MAP_WRITE_INVALIDATE_REGION") }
+	add := func(v string) {
+		if s.Len() != 0 { s.WriteByte('|') }
+		s.WriteString(v)
+	}
+	if v&MAP_READ != 0 { add("MAP_READ"); v &^= MAP_READ }
+	if v&MAP_WRITE != 0 { add("MAP_WRITE"); v &^= MAP_WRITE }
+	if v&MAP_WRITE_INVALIDATE_REGION != 0 { add("MAP_WRITE_INVALIDATE_REGION"); v &^= MAP_WRITE_INVALIDATE_REGION }
+	if v != 0 { add(fmt.Sprintf("UNKNOWN(0x%016x)", uint64(v))) }
 	return s.String()
 }
 func (v ProgramInfo) String() string {

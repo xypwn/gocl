@@ -973,13 +973,18 @@ def generate_bindings(dstdir: str, go_prelude: str, headers: list[str], custom_b
                     o.write(f"func (v {enum.gotyp}) String() string {{\n")
                     if enum.ctyp.endswith("_flags"):
                         o.write(f"\tvar s strings.Builder\n")
+                        o.write("\tadd := func(v string) {\n")
+                        o.write("\t\tif s.Len() != 0 { s.WriteByte('|') }\n")
+                        o.write("\t\ts.WriteString(v)\n")
+                        o.write("\t}\n")
                         for value in enum.values:
                             if "/* deprecated */" in value[1]:
                                 # Some enum values have been renamed with the
                                 # old name marked as deprecated; we want to avoid
                                 # duplicates
                                 continue
-                            o.write(f"\tif v&{value[0]} != 0 {{ if s.Len() != 0 {{ s.WriteByte('|') }}; s.WriteString(\"{value[0]}\") }}\n")
+                            o.write(f"\tif v&{value[0]} != 0 {{ add(\"{value[0]}\"); v &^= {value[0]} }}\n")
+                        o.write(f"\tif v != 0 {{ add(fmt.Sprintf(\"UNKNOWN(0x%016x)\", uint64(v))) }}\n")
                         o.write(f"\treturn s.String()\n")
                     else:
                         o.write("\tswitch v {\n")

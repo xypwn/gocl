@@ -1734,7 +1734,7 @@ func GetPlatformInfo[T any](platform PlatformId, param_name PlatformInfo) (_valu
 	var param_value reflect.Value
 	if value_typ.Kind() == reflect.Slice || value_typ.Kind() == reflect.String {
 		// Slice or string: Find actual size first.
-		C.clGetPlatformInfo(platform_1, C.cl_platform_info(param_name), 0, param_ptr, &param_actual_size)
+		C.clGetPlatformInfo(platform_1, C.cl_platform_info(param_name), 0, nil, &param_actual_size)
 		sliceLen := int(param_actual_size)
 		if value_typ.Kind() == reflect.Slice {
 			sliceLen /= int(value_typ.Size())
@@ -1794,7 +1794,7 @@ func GetDeviceInfo[T any](device DeviceId, param_name DeviceInfo) (_value T, _er
 	var param_value reflect.Value
 	if value_typ.Kind() == reflect.Slice || value_typ.Kind() == reflect.String {
 		// Slice or string: Find actual size first.
-		C.clGetDeviceInfo(device_1, C.cl_device_info(param_name), 0, param_ptr, &param_actual_size)
+		C.clGetDeviceInfo(device_1, C.cl_device_info(param_name), 0, nil, &param_actual_size)
 		sliceLen := int(param_actual_size)
 		if value_typ.Kind() == reflect.Slice {
 			sliceLen /= int(value_typ.Size())
@@ -1989,7 +1989,7 @@ func GetContextInfo[T any](context Context, param_name ContextInfo) (_value T, _
 	var param_value reflect.Value
 	if value_typ.Kind() == reflect.Slice || value_typ.Kind() == reflect.String {
 		// Slice or string: Find actual size first.
-		C.clGetContextInfo(context_1, C.cl_context_info(param_name), 0, param_ptr, &param_actual_size)
+		C.clGetContextInfo(context_1, C.cl_context_info(param_name), 0, nil, &param_actual_size)
 		sliceLen := int(param_actual_size)
 		if value_typ.Kind() == reflect.Slice {
 			sliceLen /= int(value_typ.Size())
@@ -2091,7 +2091,7 @@ func GetCommandQueueInfo[T any](command_queue CommandQueue, param_name CommandQu
 	var param_value reflect.Value
 	if value_typ.Kind() == reflect.Slice || value_typ.Kind() == reflect.String {
 		// Slice or string: Find actual size first.
-		C.clGetCommandQueueInfo(command_queue_1, C.cl_command_queue_info(param_name), 0, param_ptr, &param_actual_size)
+		C.clGetCommandQueueInfo(command_queue_1, C.cl_command_queue_info(param_name), 0, nil, &param_actual_size)
 		sliceLen := int(param_actual_size)
 		if value_typ.Kind() == reflect.Slice {
 			sliceLen /= int(value_typ.Size())
@@ -2255,7 +2255,7 @@ func GetMemObjectInfo[T any](memobj Mem, param_name MemInfo) (_value T, _err err
 	var param_value reflect.Value
 	if value_typ.Kind() == reflect.Slice || value_typ.Kind() == reflect.String {
 		// Slice or string: Find actual size first.
-		C.clGetMemObjectInfo(memobj_1, C.cl_mem_info(param_name), 0, param_ptr, &param_actual_size)
+		C.clGetMemObjectInfo(memobj_1, C.cl_mem_info(param_name), 0, nil, &param_actual_size)
 		sliceLen := int(param_actual_size)
 		if value_typ.Kind() == reflect.Slice {
 			sliceLen /= int(value_typ.Size())
@@ -2301,7 +2301,7 @@ func GetImageInfo[T any](image Mem, param_name ImageInfo) (_value T, _err error)
 	var param_value reflect.Value
 	if value_typ.Kind() == reflect.Slice || value_typ.Kind() == reflect.String {
 		// Slice or string: Find actual size first.
-		C.clGetImageInfo(image_1, C.cl_image_info(param_name), 0, param_ptr, &param_actual_size)
+		C.clGetImageInfo(image_1, C.cl_image_info(param_name), 0, nil, &param_actual_size)
 		sliceLen := int(param_actual_size)
 		if value_typ.Kind() == reflect.Slice {
 			sliceLen /= int(value_typ.Size())
@@ -2347,7 +2347,7 @@ func GetPipeInfo[T any](pipe Mem, param_name PipeInfo) (_value T, _err error) {
 	var param_value reflect.Value
 	if value_typ.Kind() == reflect.Slice || value_typ.Kind() == reflect.String {
 		// Slice or string: Find actual size first.
-		C.clGetPipeInfo(pipe_1, C.cl_pipe_info(param_name), 0, param_ptr, &param_actual_size)
+		C.clGetPipeInfo(pipe_1, C.cl_pipe_info(param_name), 0, nil, &param_actual_size)
 		sliceLen := int(param_actual_size)
 		if value_typ.Kind() == reflect.Slice {
 			sliceLen /= int(value_typ.Size())
@@ -2468,7 +2468,7 @@ func GetSamplerInfo[T any](sampler Sampler, param_name SamplerInfo) (_value T, _
 	var param_value reflect.Value
 	if value_typ.Kind() == reflect.Slice || value_typ.Kind() == reflect.String {
 		// Slice or string: Find actual size first.
-		C.clGetSamplerInfo(sampler_1, C.cl_sampler_info(param_name), 0, param_ptr, &param_actual_size)
+		C.clGetSamplerInfo(sampler_1, C.cl_sampler_info(param_name), 0, nil, &param_actual_size)
 		sliceLen := int(param_actual_size)
 		if value_typ.Kind() == reflect.Slice {
 			sliceLen /= int(value_typ.Size())
@@ -2751,7 +2751,7 @@ func GetProgramInfo[T any](program Program, param_name ProgramInfo) (_value T, _
 	var param_value reflect.Value
 	if value_typ.Kind() == reflect.Slice || value_typ.Kind() == reflect.String {
 		// Slice or string: Find actual size first.
-		C.clGetProgramInfo(program_1, C.cl_program_info(param_name), 0, param_ptr, &param_actual_size)
+		C.clGetProgramInfo(program_1, C.cl_program_info(param_name), 0, nil, &param_actual_size)
 		sliceLen := int(param_actual_size)
 		if value_typ.Kind() == reflect.Slice {
 			sliceLen /= int(value_typ.Size())
@@ -2798,7 +2798,7 @@ func GetProgramBuildInfo[T any](program Program, device DeviceId, param_name Pro
 	var param_value reflect.Value
 	if value_typ.Kind() == reflect.Slice || value_typ.Kind() == reflect.String {
 		// Slice or string: Find actual size first.
-		C.clGetProgramBuildInfo(program_1, device_1, C.cl_program_build_info(param_name), 0, param_ptr, &param_actual_size)
+		C.clGetProgramBuildInfo(program_1, device_1, C.cl_program_build_info(param_name), 0, nil, &param_actual_size)
 		sliceLen := int(param_actual_size)
 		if value_typ.Kind() == reflect.Slice {
 			sliceLen /= int(value_typ.Size())
@@ -2927,7 +2927,7 @@ func GetKernelInfo[T any](kernel Kernel, param_name KernelInfo) (_value T, _err 
 	var param_value reflect.Value
 	if value_typ.Kind() == reflect.Slice || value_typ.Kind() == reflect.String {
 		// Slice or string: Find actual size first.
-		C.clGetKernelInfo(kernel_1, C.cl_kernel_info(param_name), 0, param_ptr, &param_actual_size)
+		C.clGetKernelInfo(kernel_1, C.cl_kernel_info(param_name), 0, nil, &param_actual_size)
 		sliceLen := int(param_actual_size)
 		if value_typ.Kind() == reflect.Slice {
 			sliceLen /= int(value_typ.Size())
@@ -2974,7 +2974,7 @@ func GetKernelArgInfo[T any](kernel Kernel, arg_indx uint32, param_name KernelAr
 	var param_value reflect.Value
 	if value_typ.Kind() == reflect.Slice || value_typ.Kind() == reflect.String {
 		// Slice or string: Find actual size first.
-		C.clGetKernelArgInfo(kernel_1, arg_indx_1, C.cl_kernel_arg_info(param_name), 0, param_ptr, &param_actual_size)
+		C.clGetKernelArgInfo(kernel_1, arg_indx_1, C.cl_kernel_arg_info(param_name), 0, nil, &param_actual_size)
 		sliceLen := int(param_actual_size)
 		if value_typ.Kind() == reflect.Slice {
 			sliceLen /= int(value_typ.Size())
@@ -3021,7 +3021,7 @@ func GetKernelWorkGroupInfo[T any](kernel Kernel, device DeviceId, param_name Ke
 	var param_value reflect.Value
 	if value_typ.Kind() == reflect.Slice || value_typ.Kind() == reflect.String {
 		// Slice or string: Find actual size first.
-		C.clGetKernelWorkGroupInfo(kernel_1, device_1, C.cl_kernel_work_group_info(param_name), 0, param_ptr, &param_actual_size)
+		C.clGetKernelWorkGroupInfo(kernel_1, device_1, C.cl_kernel_work_group_info(param_name), 0, nil, &param_actual_size)
 		sliceLen := int(param_actual_size)
 		if value_typ.Kind() == reflect.Slice {
 			sliceLen /= int(value_typ.Size())
@@ -3070,7 +3070,7 @@ func GetKernelSubGroupInfo[T any](kernel Kernel, device DeviceId, param_name Ker
 	var param_value reflect.Value
 	if value_typ.Kind() == reflect.Slice || value_typ.Kind() == reflect.String {
 		// Slice or string: Find actual size first.
-		C.clGetKernelSubGroupInfo(kernel_1, device_1, C.cl_kernel_sub_group_info(param_name), input_value_size_1, input_value_1, 0, param_ptr, &param_actual_size)
+		C.clGetKernelSubGroupInfo(kernel_1, device_1, C.cl_kernel_sub_group_info(param_name), input_value_size_1, input_value_1, 0, nil, &param_actual_size)
 		sliceLen := int(param_actual_size)
 		if value_typ.Kind() == reflect.Slice {
 			sliceLen /= int(value_typ.Size())
@@ -3127,7 +3127,7 @@ func GetEventInfo[T any](event Event, param_name EventInfo) (_value T, _err erro
 	var param_value reflect.Value
 	if value_typ.Kind() == reflect.Slice || value_typ.Kind() == reflect.String {
 		// Slice or string: Find actual size first.
-		C.clGetEventInfo(event_1, C.cl_event_info(param_name), 0, param_ptr, &param_actual_size)
+		C.clGetEventInfo(event_1, C.cl_event_info(param_name), 0, nil, &param_actual_size)
 		sliceLen := int(param_actual_size)
 		if value_typ.Kind() == reflect.Slice {
 			sliceLen /= int(value_typ.Size())
@@ -3237,7 +3237,7 @@ func GetEventProfilingInfo[T any](event Event, param_name ProfilingInfo) (_value
 	var param_value reflect.Value
 	if value_typ.Kind() == reflect.Slice || value_typ.Kind() == reflect.String {
 		// Slice or string: Find actual size first.
-		C.clGetEventProfilingInfo(event_1, C.cl_profiling_info(param_name), 0, param_ptr, &param_actual_size)
+		C.clGetEventProfilingInfo(event_1, C.cl_profiling_info(param_name), 0, nil, &param_actual_size)
 		sliceLen := int(param_actual_size)
 		if value_typ.Kind() == reflect.Slice {
 			sliceLen /= int(value_typ.Size())

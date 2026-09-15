@@ -744,7 +744,7 @@ class FunctionStepGetInfo(FunctionStep):
                     s.code += ", "
                 if v.name == vsize.name:
                     s.code += "0"
-                elif v.name == vrval.name:
+                elif v.name == nvptr:
                     s.code += "nil"
                 elif v.name == vsize_ret.name:
                     s.code += f"&{nactsize}"

@@ -44,7 +44,7 @@ func main() {
 	}
 	fmt.Printf("Device: %q\n", deviceName)
 
-	ctx, err := cl.CreateContext(nil, []cl.DeviceId{device}, nil)
+	ctx, _, err := cl.CreateContext(nil, []cl.DeviceId{device}, nil)
 	if err != nil {
 		log.Fatal(err)
 	}

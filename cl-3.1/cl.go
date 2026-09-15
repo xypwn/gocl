@@ -1877,17 +1877,20 @@ func GetHostTimer(device DeviceId) (_host_timestamp uint64, _err error) {
 }
 //export go_cl_callback_clCreateContext
 func go_cl_callback_clCreateContext(errinfo *C.char, private_info *C.void, cb C.size_t, user_data *C.void) {
-	errinfo_1 := (*int8)(errinfo)
 	private_info_1 := (unsafe.Pointer)(private_info)
 	cb_1 := uint64(cb)
+	errinfo_1 := cstringToString(errinfo)
 	uid := int(uintptr(unsafe.Pointer(user_data)))
-	defer callbackUnregister(uid)
-	(callbackFn(uid).(func(errinfo *int8, private_info unsafe.Pointer, cb uint64)))(errinfo_1, private_info_1, cb_1)
+	(callbackFn(uid).(func(errinfo string, private_info unsafe.Pointer, cb uint64)))(errinfo_1, private_info_1, cb_1)
 }
+// If pfn_notify is provided, _callback_unregister MUST be called when the callback will no longer be used, to prevent memory leaks. _unregister_callback matches pfn_notify's nilness.
+//
+// The callback user_data parameter is intentionally left out; you should instead provide an anonymous callback function that captures the variables you need.
+//
 // API version 1.0 and above.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateContext.html.
-func CreateContext(properties []ContextProperties, devices []DeviceId, pfn_notify func(errinfo *int8, private_info unsafe.Pointer, cb uint64)) (_res Context, _errcode_ret error) {
+func CreateContext(properties []ContextProperties, devices []DeviceId, pfn_notify func(errinfo string, private_info unsafe.Pointer, cb uint64)) (_res Context, _callback_unregister func(), _errcode_ret error) {
 	var errcode_ret_1 C.cl_int
 	properties_1, properties_fin := sliceToCZeroTerm(properties)
 	defer properties_fin()
@@ -1898,27 +1901,33 @@ func CreateContext(properties []ContextProperties, devices []DeviceId, pfn_notif
 	devices_2 := (*C.cl_device_id)(devices_1)
 	var callback_uid unsafe.Pointer
 	var callback *[0]byte
+	var callback_unregister func()
 	if pfn_notify != nil {
-		callback_uid = unsafe.Pointer(uintptr(callbackRegister(pfn_notify)))
+		uid := callbackRegister(pfn_notify)
+		callback_uid = unsafe.Pointer(uintptr(uid)) // a pointer is just a number, so why not use it as such
 		callback = (*[0]byte)(C.go_cl_callback_clCreateContext)
+		callback_unregister = func() {callbackUnregister(uid)}
 	}
 	res := C.clCreateContext(properties_2, num_devices_2, devices_2, callback, callback_uid, &errcode_ret_1)
 	res_1 := Context(res)
-	return res_1, makeError(ErrorCode(errcode_ret_1))
+	return res_1, callback_unregister, makeError(ErrorCode(errcode_ret_1))
 }
 //export go_cl_callback_clCreateContextFromType
 func go_cl_callback_clCreateContextFromType(errinfo *C.char, private_info *C.void, cb C.size_t, user_data *C.void) {
-	errinfo_1 := (*int8)(errinfo)
 	private_info_1 := (unsafe.Pointer)(private_info)
 	cb_1 := uint64(cb)
+	errinfo_1 := cstringToString(errinfo)
 	uid := int(uintptr(unsafe.Pointer(user_data)))
-	defer callbackUnregister(uid)
-	(callbackFn(uid).(func(errinfo *int8, private_info unsafe.Pointer, cb uint64)))(errinfo_1, private_info_1, cb_1)
+	(callbackFn(uid).(func(errinfo string, private_info unsafe.Pointer, cb uint64)))(errinfo_1, private_info_1, cb_1)
 }
+// If pfn_notify is provided, _callback_unregister MUST be called when the callback will no longer be used, to prevent memory leaks. _unregister_callback matches pfn_notify's nilness.
+//
+// The callback user_data parameter is intentionally left out; you should instead provide an anonymous callback function that captures the variables you need.
+//
 // API version 1.0 and above.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateContextFromType.html.
-func CreateContextFromType(properties []ContextProperties, device_type DeviceType, pfn_notify func(errinfo *int8, private_info unsafe.Pointer, cb uint64)) (_res Context, _errcode_ret error) {
+func CreateContextFromType(properties []ContextProperties, device_type DeviceType, pfn_notify func(errinfo string, private_info unsafe.Pointer, cb uint64)) (_res Context, _callback_unregister func(), _errcode_ret error) {
 	var errcode_ret_1 C.cl_int
 	properties_1, properties_fin := sliceToCZeroTerm(properties)
 	defer properties_fin()
@@ -1926,13 +1935,16 @@ func CreateContextFromType(properties []ContextProperties, device_type DeviceTyp
 	device_type_1 := C.cl_device_type(device_type)
 	var callback_uid unsafe.Pointer
 	var callback *[0]byte
+	var callback_unregister func()
 	if pfn_notify != nil {
-		callback_uid = unsafe.Pointer(uintptr(callbackRegister(pfn_notify)))
+		uid := callbackRegister(pfn_notify)
+		callback_uid = unsafe.Pointer(uintptr(uid)) // a pointer is just a number, so why not use it as such
 		callback = (*[0]byte)(C.go_cl_callback_clCreateContextFromType)
+		callback_unregister = func() {callbackUnregister(uid)}
 	}
 	res := C.clCreateContextFromType(properties_2, device_type_1, callback, callback_uid, &errcode_ret_1)
 	res_1 := Context(res)
-	return res_1, makeError(ErrorCode(errcode_ret_1))
+	return res_1, callback_unregister, makeError(ErrorCode(errcode_ret_1))
 }
 // API version 1.0 and above.
 //
@@ -2003,6 +2015,10 @@ func go_cl_callback_clSetContextDestructorCallback(context C.cl_context, user_da
 	defer callbackUnregister(uid)
 	(callbackFn(uid).(func(context Context)))(context_1)
 }
+// If pfn_notify is provided, it is automatically unregistered (no need for the user to manage anything).
+//
+// The callback user_data parameter is intentionally left out; you should instead provide an anonymous callback function that captures the variables you need.
+//
 // API version 3.0 and above.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clSetContextDestructorCallback.html.
@@ -2011,7 +2027,8 @@ func SetContextDestructorCallback(context Context, pfn_notify func(context Conte
 	var callback_uid unsafe.Pointer
 	var callback *[0]byte
 	if pfn_notify != nil {
-		callback_uid = unsafe.Pointer(uintptr(callbackRegister(pfn_notify)))
+		uid := callbackRegister(pfn_notify)
+		callback_uid = unsafe.Pointer(uintptr(uid)) // a pointer is just a number, so why not use it as such
 		callback = (*[0]byte)(C.go_cl_callback_clSetContextDestructorCallback)
 	}
 	res := C.clSetContextDestructorCallback(context_1, callback, callback_uid)
@@ -2356,6 +2373,10 @@ func go_cl_callback_clSetMemObjectDestructorCallback(memobj C.cl_mem, user_data 
 	defer callbackUnregister(uid)
 	(callbackFn(uid).(func(memobj Mem)))(memobj_1)
 }
+// If pfn_notify is provided, it is automatically unregistered (no need for the user to manage anything).
+//
+// The callback user_data parameter is intentionally left out; you should instead provide an anonymous callback function that captures the variables you need.
+//
 // API version 1.1 and above.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clSetMemObjectDestructorCallback.html.
@@ -2364,7 +2385,8 @@ func SetMemObjectDestructorCallback(memobj Mem, pfn_notify func(memobj Mem)) (_e
 	var callback_uid unsafe.Pointer
 	var callback *[0]byte
 	if pfn_notify != nil {
-		callback_uid = unsafe.Pointer(uintptr(callbackRegister(pfn_notify)))
+		uid := callbackRegister(pfn_notify)
+		callback_uid = unsafe.Pointer(uintptr(uid)) // a pointer is just a number, so why not use it as such
 		callback = (*[0]byte)(C.go_cl_callback_clSetMemObjectDestructorCallback)
 	}
 	res := C.clSetMemObjectDestructorCallback(memobj_1, callback, callback_uid)
@@ -2547,6 +2569,10 @@ func go_cl_callback_clBuildProgram(program C.cl_program, user_data *C.void) {
 	defer callbackUnregister(uid)
 	(callbackFn(uid).(func(program Program)))(program_1)
 }
+// If pfn_notify is provided, it is automatically unregistered (no need for the user to manage anything).
+//
+// The callback user_data parameter is intentionally left out; you should instead provide an anonymous callback function that captures the variables you need.
+//
 // API version 1.0 and above.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clBuildProgram.html.
@@ -2561,7 +2587,8 @@ func BuildProgram(program Program, device_list []DeviceId, options string, pfn_n
 	var callback_uid unsafe.Pointer
 	var callback *[0]byte
 	if pfn_notify != nil {
-		callback_uid = unsafe.Pointer(uintptr(callbackRegister(pfn_notify)))
+		uid := callbackRegister(pfn_notify)
+		callback_uid = unsafe.Pointer(uintptr(uid)) // a pointer is just a number, so why not use it as such
 		callback = (*[0]byte)(C.go_cl_callback_clBuildProgram)
 	}
 	res := C.clBuildProgram(program_1, num_devices_2, device_list_2, options_1, callback, callback_uid)
@@ -2619,6 +2646,10 @@ func go_cl_callback_clLinkProgram(program C.cl_program, user_data *C.void) {
 	defer callbackUnregister(uid)
 	(callbackFn(uid).(func(program Program)))(program_1)
 }
+// If pfn_notify is provided, it is automatically unregistered (no need for the user to manage anything).
+//
+// The callback user_data parameter is intentionally left out; you should instead provide an anonymous callback function that captures the variables you need.
+//
 // API version 1.2 and above.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clLinkProgram.html.
@@ -2638,7 +2669,8 @@ func LinkProgram(context Context, device_list []DeviceId, options string, input_
 	var callback_uid unsafe.Pointer
 	var callback *[0]byte
 	if pfn_notify != nil {
-		callback_uid = unsafe.Pointer(uintptr(callbackRegister(pfn_notify)))
+		uid := callbackRegister(pfn_notify)
+		callback_uid = unsafe.Pointer(uintptr(uid)) // a pointer is just a number, so why not use it as such
 		callback = (*[0]byte)(C.go_cl_callback_clLinkProgram)
 	}
 	res := C.clLinkProgram(context_1, num_devices_2, device_list_2, options_1, num_input_programs_2, input_programs_2, callback, callback_uid, &errcode_ret_1)
@@ -2652,6 +2684,10 @@ func go_cl_callback_clSetProgramReleaseCallback(program C.cl_program, user_data 
 	defer callbackUnregister(uid)
 	(callbackFn(uid).(func(program Program)))(program_1)
 }
+// If pfn_notify is provided, it is automatically unregistered (no need for the user to manage anything).
+//
+// The callback user_data parameter is intentionally left out; you should instead provide an anonymous callback function that captures the variables you need.
+//
 // API version 2.2 and above.
 //
 // Deprecated: This function is deprecated in the current OpenCL version (see Khronos docs link below for details).
@@ -2662,7 +2698,8 @@ func SetProgramReleaseCallback(program Program, pfn_notify func(program Program)
 	var callback_uid unsafe.Pointer
 	var callback *[0]byte
 	if pfn_notify != nil {
-		callback_uid = unsafe.Pointer(uintptr(callbackRegister(pfn_notify)))
+		uid := callbackRegister(pfn_notify)
+		callback_uid = unsafe.Pointer(uintptr(uid)) // a pointer is just a number, so why not use it as such
 		callback = (*[0]byte)(C.go_cl_callback_clSetProgramReleaseCallback)
 	}
 	res := C.clSetProgramReleaseCallback(program_1, callback, callback_uid)
@@ -3149,23 +3186,29 @@ func go_cl_callback_clSetEventCallback(event C.cl_event, event_command_status C.
 	event_1 := Event(event)
 	event_command_status_1 := int32(event_command_status)
 	uid := int(uintptr(unsafe.Pointer(user_data)))
-	defer callbackUnregister(uid)
 	(callbackFn(uid).(func(event Event, event_command_status int32)))(event_1, event_command_status_1)
 }
+// If pfn_notify is provided, _callback_unregister MUST be called when the callback will no longer be used, to prevent memory leaks. _unregister_callback matches pfn_notify's nilness.
+//
+// The callback user_data parameter is intentionally left out; you should instead provide an anonymous callback function that captures the variables you need.
+//
 // API version 1.1 and above.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clSetEventCallback.html.
-func SetEventCallback(event Event, command_exec_callback_type int32, pfn_notify func(event Event, event_command_status int32)) (_err error) {
+func SetEventCallback(event Event, command_exec_callback_type int32, pfn_notify func(event Event, event_command_status int32)) (_callback_unregister func(), _err error) {
 	event_1 := C.cl_event(event)
 	command_exec_callback_type_1 := C.cl_int(command_exec_callback_type)
 	var callback_uid unsafe.Pointer
 	var callback *[0]byte
+	var callback_unregister func()
 	if pfn_notify != nil {
-		callback_uid = unsafe.Pointer(uintptr(callbackRegister(pfn_notify)))
+		uid := callbackRegister(pfn_notify)
+		callback_uid = unsafe.Pointer(uintptr(uid)) // a pointer is just a number, so why not use it as such
 		callback = (*[0]byte)(C.go_cl_callback_clSetEventCallback)
+		callback_unregister = func() {callbackUnregister(uid)}
 	}
 	res := C.clSetEventCallback(event_1, command_exec_callback_type_1, callback, callback_uid)
-	return makeError(ErrorCode(res))
+	return callback_unregister, makeError(ErrorCode(res))
 }
 // Simplified binding for clGetEventProfilingInfo.
 //
@@ -3611,13 +3654,16 @@ func go_cl_callback_clEnqueueSVMFree(queue C.cl_command_queue, num_svm_pointers 
 	num_svm_pointers_1 := uint32(num_svm_pointers)
 	svm_pointers_1 := (unsafe.Pointer)(svm_pointers)
 	uid := int(uintptr(unsafe.Pointer(user_data)))
-	defer callbackUnregister(uid)
 	(callbackFn(uid).(func(queue CommandQueue, num_svm_pointers uint32, svm_pointers unsafe.Pointer)))(queue_1, num_svm_pointers_1, svm_pointers_1)
 }
+// If pfn_free_func is provided, _callback_unregister MUST be called when the callback will no longer be used, to prevent memory leaks. _unregister_callback matches pfn_free_func's nilness.
+//
+// The callback user_data parameter is intentionally left out; you should instead provide an anonymous callback function that captures the variables you need.
+//
 // API version 2.0 and above.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueSVMFree.html.
-func EnqueueSVMFree(command_queue CommandQueue, num_svm_pointers uint32, svm_pointers unsafe.Pointer, pfn_free_func func(queue CommandQueue, num_svm_pointers uint32, svm_pointers unsafe.Pointer), event_wait_list []Event, event *Event) (_err error) {
+func EnqueueSVMFree(command_queue CommandQueue, num_svm_pointers uint32, svm_pointers unsafe.Pointer, pfn_free_func func(queue CommandQueue, num_svm_pointers uint32, svm_pointers unsafe.Pointer), event_wait_list []Event, event *Event) (_callback_unregister func(), _err error) {
 	event_wait_list_1, num_events_in_wait_list_1, event_wait_list_fin := sliceToC(event_wait_list)
 	defer event_wait_list_fin()
 	command_queue_1 := C.cl_command_queue(command_queue)
@@ -3625,15 +3671,18 @@ func EnqueueSVMFree(command_queue CommandQueue, num_svm_pointers uint32, svm_poi
 	svm_pointers_1 := (*unsafe.Pointer)(svm_pointers)
 	var callback_uid unsafe.Pointer
 	var callback *[0]byte
+	var callback_unregister func()
 	if pfn_free_func != nil {
-		callback_uid = unsafe.Pointer(uintptr(callbackRegister(pfn_free_func)))
+		uid := callbackRegister(pfn_free_func)
+		callback_uid = unsafe.Pointer(uintptr(uid)) // a pointer is just a number, so why not use it as such
 		callback = (*[0]byte)(C.go_cl_callback_clEnqueueSVMFree)
+		callback_unregister = func() {callbackUnregister(uid)}
 	}
 	num_events_in_wait_list_2 := C.cl_uint(num_events_in_wait_list_1)
 	event_wait_list_2 := (*C.cl_event)(event_wait_list_1)
 	event_1 := (*C.cl_event)(event)
 	res := C.clEnqueueSVMFree(command_queue_1, num_svm_pointers_1, svm_pointers_1, callback, callback_uid, num_events_in_wait_list_2, event_wait_list_2, event_1)
-	return makeError(ErrorCode(res))
+	return callback_unregister, makeError(ErrorCode(res))
 }
 // API version 2.0 and above.
 //

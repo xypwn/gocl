@@ -413,10 +413,16 @@ class FunctionStep:
 
 @dataclass
 class CallbackHint:
-    unregister: Literal["first_call","on_cond"]
+    unregister: Literal["first_call"]
 
 CALLBACK_HINTS: dict[str, CallbackHint] = {
+    r"clSetContextDestructorCallback": CallbackHint("first_call"),
+    r"clMemObjectDestructorCallback": CallbackHint("first_call"),
     r"clBuildProgram": CallbackHint("first_call"),
+    r"clLinkProgram": CallbackHint("first_call"),
+    r"clSetContextDestructorCallback": CallbackHint("first_call"),
+    r"clSetMemObjectDestructorCallback": CallbackHint("first_call"),
+    r"clSetProgramReleaseCallback": CallbackHint("first_call"),
 }
 
 @dataclass
@@ -432,13 +438,18 @@ class FunctionStepConvToC(FunctionStep):
                 new_values.append(param)
                 continue
             if param.typ.cbasetyp == "func":
-                #hint = [h for [pat, h] in CALLBACK_HINTS.items() if re.fullmatch(pat, func.name)]
-                #if len(hint) != 1:
-                #    raise Exception(f"expected exactly one callback hint to match {func.name}, but got {len(hint)}")
-                #hint = hint[0]
+                hint = [h for [pat, h] in CALLBACK_HINTS.items() if re.fullmatch(pat, func.name)]
+                if len(hint) > 1:
+                    raise Exception(f"expected at most one callback hint to match {func.name}, but got {len(hint)}")
+                hint: CallbackHint|None = hint[0] if len(hint) != 0 else None
 
                 assert param.typ.func_params is not None
                 assert param.typ.func_results is not None
+                if hint is None:
+                    s.comment += f"// If {param.name} is provided, _callback_unregister MUST be called when the callback will no longer be used, to prevent memory leaks. _unregister_callback matches {param.name}'s nilness.\n"
+                else:
+                    s.comment += f"// If {param.name} is provided, it is automatically unregistered (no need for the user to manage anything).\n"
+                s.comment += f"//\n// The callback user_data parameter is intentionally left out; you should instead provide an anonymous callback function that captures the variables you need.\n"
                 cb_name = f"go_cl_callback_{func.name}"
                 s.c_code += f"extern void {cb_name}("
                 for j, p in enumerate(param.typ.func_params):
@@ -455,28 +466,38 @@ class FunctionStepConvToC(FunctionStep):
                 s.cb_code += ") {\n"
                 param.typ.func_params = [x for x in param.typ.func_params if x.name != "user_data"]
                 step_st = FunctionStepState(param.typ.func_params)
-                steps = [FunctionStepConvToGo("values")]
+                steps = [
+                    FunctionStepCallbackFuncConvsToGo("pre_conv"),
+                    FunctionStepConvToGo("values"),
+                    FunctionStepCallbackFuncConvsToGo("post_conv"),
+                ]
                 for step in steps:
                     step(step_st, ctx, func)
                 s.cb_code += textwrap.indent(step_st.code, "\t")
                 s.cb_code += "\tuid := int(uintptr(unsafe.Pointer(user_data)))\n"
-                # TODO: Not every function should be unregistered after a single call.
-                # Maybe we can receive whether to unregister through the callback info
-                # somehow.
-                s.cb_code += "\tdefer callbackUnregister(uid)\n"
-                s.cb_code += f"\t(callbackFn(uid).({param.typ.go_str()}))("
-                for j, p in enumerate(step_st.values):
-                    if j != 0:
-                        s.cb_code += ", "
-                    s.cb_code += p.name
+                if hint is not None:
+                    s.cb_code += "\tdefer callbackUnregister(uid)\n"
+                gofntyp = f"func({", ".join([f"{p.name} {p.typ.go_str()}" for p in step_st.in_params])})"
+                s.cb_code += f"\t(callbackFn(uid).({gofntyp}))("
+                s.cb_code += ", ".join([p.name for p in step_st.values])
                 s.cb_code += ")\n"
                 s.cb_code += "}\n"
                 s.code += "var callback_uid unsafe.Pointer\n"
                 s.code += "var callback *[0]byte\n"
+                if hint is None:
+                    s.code += "var callback_unregister func()\n"
                 s.code += f"if {param.name} != nil {{\n"
-                s.code += f"\tcallback_uid = unsafe.Pointer(uintptr(callbackRegister({param.name})))\n"
+                s.code += f"\tuid := callbackRegister({param.name})\n"
+                s.code += f"\tcallback_uid = unsafe.Pointer(uintptr(uid)) // a pointer is just a number, so why not use it as such\n"
                 s.code += f"\tcallback = (*[0]byte)(C.{cb_name})\n"
+                if hint is None:
+                    s.code += "\tcallback_unregister = func() {callbackUnregister(uid)}\n"
                 s.code += "}\n"
+                if hint is None:
+                    s.out_values.insert(0, Var("callback_unregister", Type("", "func()")))
+                    s.out_params.insert(0, Var("_callback_unregister", Type("", "func()")))
+                in_param_idx = [p.name for p in s.in_params].index(param.name)
+                s.in_params[in_param_idx] = Var(param.name, Type("", gofntyp))
                 new_values.append(Var("callback", param.typ))
             elif param.name == "user_data":
                 s.in_params = [x for x in s.in_params if x.name != "user_data"]
@@ -486,6 +507,20 @@ class FunctionStepConvToC(FunctionStep):
                 s.code += f"{name} := {param.typ.conv_from_go(param.name)}\n"
                 new_values.append(Var(name, param.typ))
         setattr(s, self.values_field, new_values)
+
+@dataclass
+class FunctionStepCallbackFuncConvsToGo(FunctionStep):
+    kind: Literal["pre_conv", "post_conv"]
+    def __call__(self, s: FunctionStepState, ctx: Context, func: Function):
+        if "errinfo" not in [p.name for p in s.in_params]:
+            return
+        if self.kind == "pre_conv":
+            s.conv_lock_variables(["errinfo"])
+        else:
+            s.conv_unlock_variables(["errinfo"])
+            [[verrinfo], [verrinfoin]] = s.replace_in_params(["errinfo"],
+                [Var("errinfo", Type("", "string"))])
+            s.code += f"{verrinfo.name} := cstringToString({verrinfoin.name})\n"
 
 @dataclass
 class FunctionStepConvToGo(FunctionStep):

@@ -28,4 +28,4 @@ All files from the OpenCL Headers and OpenCL ICD Loader are licensed under the [
 All other files are licensed under the [MIT License](https://opensource.org/license/mit).
 
 ### Disclaimer
-This project is unofficial and bears no connection to OpenCL, Khronos Group or any associated entitires.
+This project is unofficial and bears no connection to OpenCL, Khronos Group or any associated entities.

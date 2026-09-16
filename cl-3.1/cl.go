@@ -1001,6 +1001,7 @@ const ( // DeviceIntegerDotProductCapabilities
 	DEVICE_INTEGER_DOT_PRODUCT_INPUT_4x8BIT_PACKED DeviceIntegerDotProductCapabilities = (1 << 0)
 	DEVICE_INTEGER_DOT_PRODUCT_INPUT_4x8BIT DeviceIntegerDotProductCapabilities = (1 << 1)
 )
+// Returns a string representation of the ErrorCode in form of the enumeration value name, or "UNKNOWN (123)" if enumeration value is unknown.
 func (v ErrorCode) String() string {
 	switch v {
 	case SUCCESS: return "SUCCESS"
@@ -1069,6 +1070,7 @@ func (v ErrorCode) String() string {
 	default: return fmt.Sprintf("UNKNOWN (%d)", v)
 	}
 }
+// Returns a string representation of the PlatformInfo in form of the enumeration value name, or "UNKNOWN (123)" if enumeration value is unknown.
 func (v PlatformInfo) String() string {
 	switch v {
 	case PLATFORM_PROFILE: return "PLATFORM_PROFILE"
@@ -1082,6 +1084,9 @@ func (v PlatformInfo) String() string {
 	default: return fmt.Sprintf("UNKNOWN (%d)", v)
 	}
 }
+// Returns a string representation of the DeviceType in form of each known flag name separated by |.
+//
+// If any unmatched bits are contained, they are added as one "UNKNOWN(0x...)" pseudo-flag.
 func (v DeviceType) String() string {
 	var s strings.Builder
 	add := func(v string) {
@@ -1097,6 +1102,7 @@ func (v DeviceType) String() string {
 	if v != 0 { add(fmt.Sprintf("UNKNOWN(0x%016x)", uint64(v))) }
 	return s.String()
 }
+// Returns a string representation of the DeviceInfo in form of the enumeration value name, or "UNKNOWN (123)" if enumeration value is unknown.
 func (v DeviceInfo) String() string {
 	switch v {
 	case DEVICE_TYPE: return "DEVICE_TYPE"
@@ -1221,6 +1227,9 @@ func (v DeviceInfo) String() string {
 	default: return fmt.Sprintf("UNKNOWN (%d)", v)
 	}
 }
+// Returns a string representation of the DeviceFpConfig in form of each known flag name separated by |.
+//
+// If any unmatched bits are contained, they are added as one "UNKNOWN(0x...)" pseudo-flag.
 func (v DeviceFpConfig) String() string {
 	var s strings.Builder
 	add := func(v string) {
@@ -1238,6 +1247,7 @@ func (v DeviceFpConfig) String() string {
 	if v != 0 { add(fmt.Sprintf("UNKNOWN(0x%016x)", uint64(v))) }
 	return s.String()
 }
+// Returns a string representation of the DeviceMemCacheType in form of the enumeration value name, or "UNKNOWN (123)" if enumeration value is unknown.
 func (v DeviceMemCacheType) String() string {
 	switch v {
 	case NONE: return "NONE"
@@ -1246,6 +1256,7 @@ func (v DeviceMemCacheType) String() string {
 	default: return fmt.Sprintf("UNKNOWN (%d)", v)
 	}
 }
+// Returns a string representation of the DeviceLocalMemType in form of the enumeration value name, or "UNKNOWN (123)" if enumeration value is unknown.
 func (v DeviceLocalMemType) String() string {
 	switch v {
 	case LOCAL: return "LOCAL"
@@ -1253,6 +1264,9 @@ func (v DeviceLocalMemType) String() string {
 	default: return fmt.Sprintf("UNKNOWN (%d)", v)
 	}
 }
+// Returns a string representation of the DeviceExecCapabilities in form of each known flag name separated by |.
+//
+// If any unmatched bits are contained, they are added as one "UNKNOWN(0x...)" pseudo-flag.
 func (v DeviceExecCapabilities) String() string {
 	var s strings.Builder
 	add := func(v string) {
@@ -1264,6 +1278,9 @@ func (v DeviceExecCapabilities) String() string {
 	if v != 0 { add(fmt.Sprintf("UNKNOWN(0x%016x)", uint64(v))) }
 	return s.String()
 }
+// Returns a string representation of the CommandQueueProperties in form of each known flag name separated by |.
+//
+// If any unmatched bits are contained, they are added as one "UNKNOWN(0x...)" pseudo-flag.
 func (v CommandQueueProperties) String() string {
 	var s strings.Builder
 	add := func(v string) {
@@ -1277,6 +1294,7 @@ func (v CommandQueueProperties) String() string {
 	if v != 0 { add(fmt.Sprintf("UNKNOWN(0x%016x)", uint64(v))) }
 	return s.String()
 }
+// Returns a string representation of the ContextInfo in form of the enumeration value name, or "UNKNOWN (123)" if enumeration value is unknown.
 func (v ContextInfo) String() string {
 	switch v {
 	case CONTEXT_REFERENCE_COUNT: return "CONTEXT_REFERENCE_COUNT"
@@ -1286,6 +1304,7 @@ func (v ContextInfo) String() string {
 	default: return fmt.Sprintf("UNKNOWN (%d)", v)
 	}
 }
+// Returns a string representation of the ContextProperties in form of the enumeration value name, or "UNKNOWN (123)" if enumeration value is unknown.
 func (v ContextProperties) String() string {
 	switch v {
 	case CONTEXT_PLATFORM: return "CONTEXT_PLATFORM"
@@ -1293,6 +1312,7 @@ func (v ContextProperties) String() string {
 	default: return fmt.Sprintf("UNKNOWN (%d)", v)
 	}
 }
+// Returns a string representation of the DevicePartitionProperty in form of the enumeration value name, or "UNKNOWN (123)" if enumeration value is unknown.
 func (v DevicePartitionProperty) String() string {
 	switch v {
 	case DEVICE_PARTITION_EQUALLY: return "DEVICE_PARTITION_EQUALLY"
@@ -1302,6 +1322,9 @@ func (v DevicePartitionProperty) String() string {
 	default: return fmt.Sprintf("UNKNOWN (%d)", v)
 	}
 }
+// Returns a string representation of the DeviceAffinityDomain in form of each known flag name separated by |.
+//
+// If any unmatched bits are contained, they are added as one "UNKNOWN(0x...)" pseudo-flag.
 func (v DeviceAffinityDomain) String() string {
 	var s strings.Builder
 	add := func(v string) {
@@ -1317,6 +1340,9 @@ func (v DeviceAffinityDomain) String() string {
 	if v != 0 { add(fmt.Sprintf("UNKNOWN(0x%016x)", uint64(v))) }
 	return s.String()
 }
+// Returns a string representation of the DeviceSvmCapabilities in form of each known flag name separated by |.
+//
+// If any unmatched bits are contained, they are added as one "UNKNOWN(0x...)" pseudo-flag.
 func (v DeviceSvmCapabilities) String() string {
 	var s strings.Builder
 	add := func(v string) {
@@ -1330,6 +1356,7 @@ func (v DeviceSvmCapabilities) String() string {
 	if v != 0 { add(fmt.Sprintf("UNKNOWN(0x%016x)", uint64(v))) }
 	return s.String()
 }
+// Returns a string representation of the CommandQueueInfo in form of the enumeration value name, or "UNKNOWN (123)" if enumeration value is unknown.
 func (v CommandQueueInfo) String() string {
 	switch v {
 	case QUEUE_CONTEXT: return "QUEUE_CONTEXT"
@@ -1342,6 +1369,9 @@ func (v CommandQueueInfo) String() string {
 	default: return fmt.Sprintf("UNKNOWN (%d)", v)
 	}
 }
+// Returns a string representation of the MemFlags in form of each known flag name separated by |.
+//
+// If any unmatched bits are contained, they are added as one "UNKNOWN(0x...)" pseudo-flag.
 func (v MemFlags) String() string {
 	var s strings.Builder
 	add := func(v string) {
@@ -1363,6 +1393,9 @@ func (v MemFlags) String() string {
 	if v != 0 { add(fmt.Sprintf("UNKNOWN(0x%016x)", uint64(v))) }
 	return s.String()
 }
+// Returns a string representation of the MemMigrationFlags in form of each known flag name separated by |.
+//
+// If any unmatched bits are contained, they are added as one "UNKNOWN(0x...)" pseudo-flag.
 func (v MemMigrationFlags) String() string {
 	var s strings.Builder
 	add := func(v string) {
@@ -1374,6 +1407,7 @@ func (v MemMigrationFlags) String() string {
 	if v != 0 { add(fmt.Sprintf("UNKNOWN(0x%016x)", uint64(v))) }
 	return s.String()
 }
+// Returns a string representation of the ChannelOrder in form of the enumeration value name, or "UNKNOWN (123)" if enumeration value is unknown.
 func (v ChannelOrder) String() string {
 	switch v {
 	case R: return "R"
@@ -1398,6 +1432,7 @@ func (v ChannelOrder) String() string {
 	default: return fmt.Sprintf("UNKNOWN (%d)", v)
 	}
 }
+// Returns a string representation of the ChannelType in form of the enumeration value name, or "UNKNOWN (123)" if enumeration value is unknown.
 func (v ChannelType) String() string {
 	switch v {
 	case SNORM_INT8: return "SNORM_INT8"
@@ -1419,6 +1454,7 @@ func (v ChannelType) String() string {
 	default: return fmt.Sprintf("UNKNOWN (%d)", v)
 	}
 }
+// Returns a string representation of the MemObjectType in form of the enumeration value name, or "UNKNOWN (123)" if enumeration value is unknown.
 func (v MemObjectType) String() string {
 	switch v {
 	case MEM_OBJECT_BUFFER: return "MEM_OBJECT_BUFFER"
@@ -1432,6 +1468,7 @@ func (v MemObjectType) String() string {
 	default: return fmt.Sprintf("UNKNOWN (%d)", v)
 	}
 }
+// Returns a string representation of the MemInfo in form of the enumeration value name, or "UNKNOWN (123)" if enumeration value is unknown.
 func (v MemInfo) String() string {
 	switch v {
 	case MEM_TYPE: return "MEM_TYPE"
@@ -1448,6 +1485,7 @@ func (v MemInfo) String() string {
 	default: return fmt.Sprintf("UNKNOWN (%d)", v)
 	}
 }
+// Returns a string representation of the ImageInfo in form of the enumeration value name, or "UNKNOWN (123)" if enumeration value is unknown.
 func (v ImageInfo) String() string {
 	switch v {
 	case IMAGE_FORMAT: return "IMAGE_FORMAT"
@@ -1464,6 +1502,7 @@ func (v ImageInfo) String() string {
 	default: return fmt.Sprintf("UNKNOWN (%d)", v)
 	}
 }
+// Returns a string representation of the PipeInfo in form of the enumeration value name, or "UNKNOWN (123)" if enumeration value is unknown.
 func (v PipeInfo) String() string {
 	switch v {
 	case PIPE_PACKET_SIZE: return "PIPE_PACKET_SIZE"
@@ -1472,6 +1511,7 @@ func (v PipeInfo) String() string {
 	default: return fmt.Sprintf("UNKNOWN (%d)", v)
 	}
 }
+// Returns a string representation of the AddressingMode in form of the enumeration value name, or "UNKNOWN (123)" if enumeration value is unknown.
 func (v AddressingMode) String() string {
 	switch v {
 	case ADDRESS_NONE: return "ADDRESS_NONE"
@@ -1482,6 +1522,7 @@ func (v AddressingMode) String() string {
 	default: return fmt.Sprintf("UNKNOWN (%d)", v)
 	}
 }
+// Returns a string representation of the FilterMode in form of the enumeration value name, or "UNKNOWN (123)" if enumeration value is unknown.
 func (v FilterMode) String() string {
 	switch v {
 	case FILTER_NEAREST: return "FILTER_NEAREST"
@@ -1489,6 +1530,7 @@ func (v FilterMode) String() string {
 	default: return fmt.Sprintf("UNKNOWN (%d)", v)
 	}
 }
+// Returns a string representation of the SamplerInfo in form of the enumeration value name, or "UNKNOWN (123)" if enumeration value is unknown.
 func (v SamplerInfo) String() string {
 	switch v {
 	case SAMPLER_REFERENCE_COUNT: return "SAMPLER_REFERENCE_COUNT"
@@ -1503,6 +1545,9 @@ func (v SamplerInfo) String() string {
 	default: return fmt.Sprintf("UNKNOWN (%d)", v)
 	}
 }
+// Returns a string representation of the MapFlags in form of each known flag name separated by |.
+//
+// If any unmatched bits are contained, they are added as one "UNKNOWN(0x...)" pseudo-flag.
 func (v MapFlags) String() string {
 	var s strings.Builder
 	add := func(v string) {
@@ -1515,6 +1560,7 @@ func (v MapFlags) String() string {
 	if v != 0 { add(fmt.Sprintf("UNKNOWN(0x%016x)", uint64(v))) }
 	return s.String()
 }
+// Returns a string representation of the ProgramInfo in form of the enumeration value name, or "UNKNOWN (123)" if enumeration value is unknown.
 func (v ProgramInfo) String() string {
 	switch v {
 	case PROGRAM_REFERENCE_COUNT: return "PROGRAM_REFERENCE_COUNT"
@@ -1532,6 +1578,7 @@ func (v ProgramInfo) String() string {
 	default: return fmt.Sprintf("UNKNOWN (%d)", v)
 	}
 }
+// Returns a string representation of the ProgramBuildInfo in form of the enumeration value name, or "UNKNOWN (123)" if enumeration value is unknown.
 func (v ProgramBuildInfo) String() string {
 	switch v {
 	case PROGRAM_BUILD_STATUS: return "PROGRAM_BUILD_STATUS"
@@ -1542,6 +1589,7 @@ func (v ProgramBuildInfo) String() string {
 	default: return fmt.Sprintf("UNKNOWN (%d)", v)
 	}
 }
+// Returns a string representation of the ProgramBinaryType in form of the enumeration value name, or "UNKNOWN (123)" if enumeration value is unknown.
 func (v ProgramBinaryType) String() string {
 	switch v {
 	case PROGRAM_BINARY_TYPE_NONE: return "PROGRAM_BINARY_TYPE_NONE"
@@ -1551,6 +1599,7 @@ func (v ProgramBinaryType) String() string {
 	default: return fmt.Sprintf("UNKNOWN (%d)", v)
 	}
 }
+// Returns a string representation of the BuildStatus in form of the enumeration value name, or "UNKNOWN (123)" if enumeration value is unknown.
 func (v BuildStatus) String() string {
 	switch v {
 	case BUILD_SUCCESS: return "BUILD_SUCCESS"
@@ -1560,6 +1609,7 @@ func (v BuildStatus) String() string {
 	default: return fmt.Sprintf("UNKNOWN (%d)", v)
 	}
 }
+// Returns a string representation of the KernelInfo in form of the enumeration value name, or "UNKNOWN (123)" if enumeration value is unknown.
 func (v KernelInfo) String() string {
 	switch v {
 	case KERNEL_FUNCTION_NAME: return "KERNEL_FUNCTION_NAME"
@@ -1571,6 +1621,7 @@ func (v KernelInfo) String() string {
 	default: return fmt.Sprintf("UNKNOWN (%d)", v)
 	}
 }
+// Returns a string representation of the KernelArgInfo in form of the enumeration value name, or "UNKNOWN (123)" if enumeration value is unknown.
 func (v KernelArgInfo) String() string {
 	switch v {
 	case KERNEL_ARG_ADDRESS_QUALIFIER: return "KERNEL_ARG_ADDRESS_QUALIFIER"
@@ -1581,6 +1632,7 @@ func (v KernelArgInfo) String() string {
 	default: return fmt.Sprintf("UNKNOWN (%d)", v)
 	}
 }
+// Returns a string representation of the KernelArgAddressQualifier in form of the enumeration value name, or "UNKNOWN (123)" if enumeration value is unknown.
 func (v KernelArgAddressQualifier) String() string {
 	switch v {
 	case KERNEL_ARG_ADDRESS_GLOBAL: return "KERNEL_ARG_ADDRESS_GLOBAL"
@@ -1590,6 +1642,7 @@ func (v KernelArgAddressQualifier) String() string {
 	default: return fmt.Sprintf("UNKNOWN (%d)", v)
 	}
 }
+// Returns a string representation of the KernelArgAccessQualifier in form of the enumeration value name, or "UNKNOWN (123)" if enumeration value is unknown.
 func (v KernelArgAccessQualifier) String() string {
 	switch v {
 	case KERNEL_ARG_ACCESS_READ_ONLY: return "KERNEL_ARG_ACCESS_READ_ONLY"
@@ -1599,6 +1652,9 @@ func (v KernelArgAccessQualifier) String() string {
 	default: return fmt.Sprintf("UNKNOWN (%d)", v)
 	}
 }
+// Returns a string representation of the KernelArgTypeQualifier in form of each known flag name separated by |.
+//
+// If any unmatched bits are contained, they are added as one "UNKNOWN(0x...)" pseudo-flag.
 func (v KernelArgTypeQualifier) String() string {
 	var s strings.Builder
 	add := func(v string) {
@@ -1613,6 +1669,7 @@ func (v KernelArgTypeQualifier) String() string {
 	if v != 0 { add(fmt.Sprintf("UNKNOWN(0x%016x)", uint64(v))) }
 	return s.String()
 }
+// Returns a string representation of the KernelWorkGroupInfo in form of the enumeration value name, or "UNKNOWN (123)" if enumeration value is unknown.
 func (v KernelWorkGroupInfo) String() string {
 	switch v {
 	case KERNEL_WORK_GROUP_SIZE: return "KERNEL_WORK_GROUP_SIZE"
@@ -1624,6 +1681,7 @@ func (v KernelWorkGroupInfo) String() string {
 	default: return fmt.Sprintf("UNKNOWN (%d)", v)
 	}
 }
+// Returns a string representation of the KernelSubGroupInfo in form of the enumeration value name, or "UNKNOWN (123)" if enumeration value is unknown.
 func (v KernelSubGroupInfo) String() string {
 	switch v {
 	case KERNEL_MAX_SUB_GROUP_SIZE_FOR_NDRANGE: return "KERNEL_MAX_SUB_GROUP_SIZE_FOR_NDRANGE"
@@ -1634,6 +1692,7 @@ func (v KernelSubGroupInfo) String() string {
 	default: return fmt.Sprintf("UNKNOWN (%d)", v)
 	}
 }
+// Returns a string representation of the KernelExecInfo in form of the enumeration value name, or "UNKNOWN (123)" if enumeration value is unknown.
 func (v KernelExecInfo) String() string {
 	switch v {
 	case KERNEL_EXEC_INFO_SVM_PTRS: return "KERNEL_EXEC_INFO_SVM_PTRS"
@@ -1641,6 +1700,7 @@ func (v KernelExecInfo) String() string {
 	default: return fmt.Sprintf("UNKNOWN (%d)", v)
 	}
 }
+// Returns a string representation of the EventInfo in form of the enumeration value name, or "UNKNOWN (123)" if enumeration value is unknown.
 func (v EventInfo) String() string {
 	switch v {
 	case EVENT_COMMAND_QUEUE: return "EVENT_COMMAND_QUEUE"
@@ -1651,6 +1711,7 @@ func (v EventInfo) String() string {
 	default: return fmt.Sprintf("UNKNOWN (%d)", v)
 	}
 }
+// Returns a string representation of the CommandType in form of the enumeration value name, or "UNKNOWN (123)" if enumeration value is unknown.
 func (v CommandType) String() string {
 	switch v {
 	case COMMAND_NDRANGE_KERNEL: return "COMMAND_NDRANGE_KERNEL"
@@ -1687,12 +1748,14 @@ func (v CommandType) String() string {
 	default: return fmt.Sprintf("UNKNOWN (%d)", v)
 	}
 }
+// Returns a string representation of the BufferCreateType in form of the enumeration value name, or "UNKNOWN (123)" if enumeration value is unknown.
 func (v BufferCreateType) String() string {
 	switch v {
 	case BUFFER_CREATE_TYPE_REGION: return "BUFFER_CREATE_TYPE_REGION"
 	default: return fmt.Sprintf("UNKNOWN (%d)", v)
 	}
 }
+// Returns a string representation of the ProfilingInfo in form of the enumeration value name, or "UNKNOWN (123)" if enumeration value is unknown.
 func (v ProfilingInfo) String() string {
 	switch v {
 	case PROFILING_COMMAND_QUEUED: return "PROFILING_COMMAND_QUEUED"
@@ -1703,6 +1766,9 @@ func (v ProfilingInfo) String() string {
 	default: return fmt.Sprintf("UNKNOWN (%d)", v)
 	}
 }
+// Returns a string representation of the DeviceAtomicCapabilities in form of each known flag name separated by |.
+//
+// If any unmatched bits are contained, they are added as one "UNKNOWN(0x...)" pseudo-flag.
 func (v DeviceAtomicCapabilities) String() string {
 	var s strings.Builder
 	add := func(v string) {
@@ -1719,6 +1785,9 @@ func (v DeviceAtomicCapabilities) String() string {
 	if v != 0 { add(fmt.Sprintf("UNKNOWN(0x%016x)", uint64(v))) }
 	return s.String()
 }
+// Returns a string representation of the DeviceDeviceEnqueueCapabilities in form of each known flag name separated by |.
+//
+// If any unmatched bits are contained, they are added as one "UNKNOWN(0x...)" pseudo-flag.
 func (v DeviceDeviceEnqueueCapabilities) String() string {
 	var s strings.Builder
 	add := func(v string) {
@@ -1730,12 +1799,16 @@ func (v DeviceDeviceEnqueueCapabilities) String() string {
 	if v != 0 { add(fmt.Sprintf("UNKNOWN(0x%016x)", uint64(v))) }
 	return s.String()
 }
+// Returns a string representation of the KhronosVendorId in form of the enumeration value name, or "UNKNOWN (123)" if enumeration value is unknown.
 func (v KhronosVendorId) String() string {
 	switch v {
 	case KHRONOS_VENDOR_ID_CODEPLAY: return "KHRONOS_VENDOR_ID_CODEPLAY"
 	default: return fmt.Sprintf("UNKNOWN (%d)", v)
 	}
 }
+// Returns a string representation of the DeviceIntegerDotProductCapabilities in form of each known flag name separated by |.
+//
+// If any unmatched bits are contained, they are added as one "UNKNOWN(0x...)" pseudo-flag.
 func (v DeviceIntegerDotProductCapabilities) String() string {
 	var s strings.Builder
 	add := func(v string) {
@@ -1750,7 +1823,7 @@ func (v DeviceIntegerDotProductCapabilities) String() string {
 
 // Functions
 
-// API version 1.0 and above.
+// Introduced in OpenCL version 1.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetPlatformIDs.html.
 func GetPlatformIDs() (_platforms []PlatformId, _err error) {
@@ -1770,7 +1843,7 @@ func GetPlatformIDs() (_platforms []PlatformId, _err error) {
 //	- string (e.g. char[]): Go string or []byte (either is accepted)
 //	- array (e.g. size_t[]): slice of equivalent Go type (e.g. []uint64)
 //
-// API version 1.0 and above.
+// Introduced in OpenCL version 1.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetPlatformInfo.html.
 func GetPlatformInfo[T any](platform PlatformId, param_name PlatformInfo) (_value T, _err error) {
@@ -1808,7 +1881,7 @@ func GetPlatformInfo[T any](platform PlatformId, param_name PlatformInfo) (_valu
 	res := C.clGetPlatformInfo(platform_1, C.cl_platform_info(param_name), param_actual_size, param_ptr, &param_actual_size)
 	return maybeStripNullTermAndConvToString(param_value).Interface().(T), makeError(ErrorCode(res))
 }
-// API version 1.0 and above.
+// Introduced in OpenCL version 1.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetDeviceIDs.html.
 func GetDeviceIDs(platform PlatformId, device_type DeviceType) (_devices []DeviceId, _err error) {
@@ -1830,7 +1903,7 @@ func GetDeviceIDs(platform PlatformId, device_type DeviceType) (_devices []Devic
 //	- string (e.g. char[]): Go string or []byte (either is accepted)
 //	- array (e.g. size_t[]): slice of equivalent Go type (e.g. []uint64)
 //
-// API version 1.0 and above.
+// Introduced in OpenCL version 1.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetDeviceInfo.html.
 func GetDeviceInfo[T any](device DeviceId, param_name DeviceInfo) (_value T, _err error) {
@@ -1868,7 +1941,7 @@ func GetDeviceInfo[T any](device DeviceId, param_name DeviceInfo) (_value T, _er
 	res := C.clGetDeviceInfo(device_1, C.cl_device_info(param_name), param_actual_size, param_ptr, &param_actual_size)
 	return maybeStripNullTermAndConvToString(param_value).Interface().(T), makeError(ErrorCode(res))
 }
-// API version 1.2 and above.
+// Introduced in OpenCL version 1.2.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateSubDevices.html.
 func CreateSubDevices(in_device DeviceId, properties []DevicePartitionProperty, out_devices []DeviceId, num_devices_ret *uint32) (_err error) {
@@ -1884,7 +1957,7 @@ func CreateSubDevices(in_device DeviceId, properties []DevicePartitionProperty, 
 	res := C.clCreateSubDevices(in_device_1, properties_2, num_devices_2, out_devices_2, num_devices_ret_1)
 	return makeError(ErrorCode(res))
 }
-// API version 1.2 and above.
+// Introduced in OpenCL version 1.2.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clRetainDevice.html.
 func RetainDevice(device DeviceId) (_err error) {
@@ -1892,7 +1965,7 @@ func RetainDevice(device DeviceId) (_err error) {
 	res := C.clRetainDevice(device_1)
 	return makeError(ErrorCode(res))
 }
-// API version 1.2 and above.
+// Introduced in OpenCL version 1.2.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clReleaseDevice.html.
 func ReleaseDevice(device DeviceId) (_err error) {
@@ -1900,7 +1973,9 @@ func ReleaseDevice(device DeviceId) (_err error) {
 	res := C.clReleaseDevice(device_1)
 	return makeError(ErrorCode(res))
 }
-// API version 2.1 and above.
+// Description: Replaces the default command-queue on the device.
+//
+// Introduced in OpenCL version 2.1.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clSetDefaultDeviceCommandQueue.html.
 func SetDefaultDeviceCommandQueue(context Context, device DeviceId, command_queue CommandQueue) (_err error) {
@@ -1910,7 +1985,7 @@ func SetDefaultDeviceCommandQueue(context Context, device DeviceId, command_queu
 	res := C.clSetDefaultDeviceCommandQueue(context_1, device_1, command_queue_1)
 	return makeError(ErrorCode(res))
 }
-// API version 2.1 and above.
+// Introduced in OpenCL version 2.1.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetDeviceAndHostTimer.html.
 func GetDeviceAndHostTimer(device DeviceId) (_device_timestamp uint64, _host_timestamp uint64, _err error) {
@@ -1922,7 +1997,7 @@ func GetDeviceAndHostTimer(device DeviceId) (_device_timestamp uint64, _host_tim
 	host_timestamp_2 := uint64(host_timestamp_1)
 	return device_timestamp_2, host_timestamp_2, makeError(ErrorCode(res))
 }
-// API version 2.1 and above.
+// Introduced in OpenCL version 2.1.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetHostTimer.html.
 func GetHostTimer(device DeviceId) (_host_timestamp uint64, _err error) {
@@ -1944,7 +2019,7 @@ func go_cl_callback_clCreateContext(errinfo *C.char, private_info *C.void, cb C.
 //
 // The callback user_data parameter is intentionally left out; you should instead provide an anonymous callback function that captures the variables you need.
 //
-// API version 1.0 and above.
+// Introduced in OpenCL version 1.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateContext.html.
 func CreateContext(properties []ContextProperties, devices []DeviceId, pfn_notify func(errinfo string, private_info unsafe.Pointer, cb uint64)) (_res Context, _callback_unregister func(), _errcode_ret error) {
@@ -1981,7 +2056,7 @@ func go_cl_callback_clCreateContextFromType(errinfo *C.char, private_info *C.voi
 //
 // The callback user_data parameter is intentionally left out; you should instead provide an anonymous callback function that captures the variables you need.
 //
-// API version 1.0 and above.
+// Introduced in OpenCL version 1.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateContextFromType.html.
 func CreateContextFromType(properties []ContextProperties, device_type DeviceType, pfn_notify func(errinfo string, private_info unsafe.Pointer, cb uint64)) (_res Context, _callback_unregister func(), _errcode_ret error) {
@@ -2003,7 +2078,7 @@ func CreateContextFromType(properties []ContextProperties, device_type DeviceTyp
 	res_1 := Context(res)
 	return res_1, callback_unregister, makeError(ErrorCode(errcode_ret_1))
 }
-// API version 1.0 and above.
+// Introduced in OpenCL version 1.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clRetainContext.html.
 func RetainContext(context Context) (_err error) {
@@ -2011,7 +2086,7 @@ func RetainContext(context Context) (_err error) {
 	res := C.clRetainContext(context_1)
 	return makeError(ErrorCode(res))
 }
-// API version 1.0 and above.
+// Introduced in OpenCL version 1.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clReleaseContext.html.
 func ReleaseContext(context Context) (_err error) {
@@ -2027,7 +2102,7 @@ func ReleaseContext(context Context) (_err error) {
 //	- string (e.g. char[]): Go string or []byte (either is accepted)
 //	- array (e.g. size_t[]): slice of equivalent Go type (e.g. []uint64)
 //
-// API version 1.0 and above.
+// Introduced in OpenCL version 1.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetContextInfo.html.
 func GetContextInfo[T any](context Context, param_name ContextInfo) (_value T, _err error) {
@@ -2076,7 +2151,7 @@ func go_cl_callback_clSetContextDestructorCallback(context C.cl_context, user_da
 //
 // The callback user_data parameter is intentionally left out; you should instead provide an anonymous callback function that captures the variables you need.
 //
-// API version 3.0 and above.
+// Introduced in OpenCL version 3.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clSetContextDestructorCallback.html.
 func SetContextDestructorCallback(context Context, pfn_notify func(context Context)) (_err error) {
@@ -2091,7 +2166,9 @@ func SetContextDestructorCallback(context Context, pfn_notify func(context Conte
 	res := C.clSetContextDestructorCallback(context_1, callback, callback_uid)
 	return makeError(ErrorCode(res))
 }
-// API version 2.0 and above.
+// Description: Create a host or device command-queue on a specific device.
+//
+// Introduced in OpenCL version 2.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateCommandQueueWithProperties.html.
 func CreateCommandQueueWithProperties(context Context, device DeviceId, properties []QueueProperties) (_res CommandQueue, _errcode_ret error) {
@@ -2105,7 +2182,9 @@ func CreateCommandQueueWithProperties(context Context, device DeviceId, properti
 	res_1 := CommandQueue(res)
 	return res_1, makeError(ErrorCode(errcode_ret_1))
 }
-// API version 1.0 and above.
+// Description: Increments the command_queue reference count.
+//
+// Introduced in OpenCL version 1.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clRetainCommandQueue.html.
 func RetainCommandQueue(command_queue CommandQueue) (_err error) {
@@ -2113,7 +2192,9 @@ func RetainCommandQueue(command_queue CommandQueue) (_err error) {
 	res := C.clRetainCommandQueue(command_queue_1)
 	return makeError(ErrorCode(res))
 }
-// API version 1.0 and above.
+// Description: Decrements the command_queue reference count.
+//
+// Introduced in OpenCL version 1.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clReleaseCommandQueue.html.
 func ReleaseCommandQueue(command_queue CommandQueue) (_err error) {
@@ -2129,7 +2210,9 @@ func ReleaseCommandQueue(command_queue CommandQueue) (_err error) {
 //	- string (e.g. char[]): Go string or []byte (either is accepted)
 //	- array (e.g. size_t[]): slice of equivalent Go type (e.g. []uint64)
 //
-// API version 1.0 and above.
+// Description: Query information about a command-queue.
+//
+// Introduced in OpenCL version 1.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetCommandQueueInfo.html.
 func GetCommandQueueInfo[T any](command_queue CommandQueue, param_name CommandQueueInfo) (_value T, _err error) {
@@ -2167,7 +2250,9 @@ func GetCommandQueueInfo[T any](command_queue CommandQueue, param_name CommandQu
 	res := C.clGetCommandQueueInfo(command_queue_1, C.cl_command_queue_info(param_name), param_actual_size, param_ptr, &param_actual_size)
 	return maybeStripNullTermAndConvToString(param_value).Interface().(T), makeError(ErrorCode(res))
 }
-// API version 1.0 and above.
+// Description: Creates a buffer object.
+//
+// Introduced in OpenCL version 1.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateBuffer.html.
 func CreateBuffer(context Context, flags MemFlags, size uint64, host_ptr unsafe.Pointer) (_res Mem, _errcode_ret error) {
@@ -2180,7 +2265,7 @@ func CreateBuffer(context Context, flags MemFlags, size uint64, host_ptr unsafe.
 	res_1 := Mem(res)
 	return res_1, makeError(ErrorCode(errcode_ret_1))
 }
-// API version 1.1 and above.
+// Introduced in OpenCL version 1.1.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateSubBuffer.html.
 func CreateSubBuffer(buffer Mem, flags MemFlags, buffer_create_type BufferCreateType, buffer_create_info unsafe.Pointer) (_res Mem, _errcode_ret error) {
@@ -2193,7 +2278,9 @@ func CreateSubBuffer(buffer Mem, flags MemFlags, buffer_create_type BufferCreate
 	res_1 := Mem(res)
 	return res_1, makeError(ErrorCode(errcode_ret_1))
 }
-// API version 1.2 and above.
+// Description: Creates a 1D image, 1D image buffer, 1D image array, 2D image, 2D image array or 3D image object.
+//
+// Introduced in OpenCL version 1.2.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateImage.html.
 func CreateImage(context Context, flags MemFlags, image_format *ImageFormat, image_desc *ImageDesc, host_ptr unsafe.Pointer) (_res Mem, _errcode_ret error) {
@@ -2207,7 +2294,9 @@ func CreateImage(context Context, flags MemFlags, image_format *ImageFormat, ima
 	res_1 := Mem(res)
 	return res_1, makeError(ErrorCode(errcode_ret_1))
 }
-// API version 2.0 and above.
+// Description: Creates a pipe object.
+//
+// Introduced in OpenCL version 2.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreatePipe.html.
 func CreatePipe(context Context, flags MemFlags, pipe_packet_size uint32, pipe_max_packets uint32, properties []PipeProperties) (_res Mem, _errcode_ret error) {
@@ -2223,7 +2312,7 @@ func CreatePipe(context Context, flags MemFlags, pipe_packet_size uint32, pipe_m
 	res_1 := Mem(res)
 	return res_1, makeError(ErrorCode(errcode_ret_1))
 }
-// API version 3.0 and above.
+// Introduced in OpenCL version 3.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateBufferWithProperties.html.
 func CreateBufferWithProperties(context Context, properties []MemProperties, flags MemFlags, size uint64, host_ptr unsafe.Pointer) (_res Mem, _errcode_ret error) {
@@ -2239,7 +2328,7 @@ func CreateBufferWithProperties(context Context, properties []MemProperties, fla
 	res_1 := Mem(res)
 	return res_1, makeError(ErrorCode(errcode_ret_1))
 }
-// API version 3.0 and above.
+// Introduced in OpenCL version 3.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateImageWithProperties.html.
 func CreateImageWithProperties(context Context, properties []MemProperties, flags MemFlags, image_format *ImageFormat, image_desc *ImageDesc, host_ptr unsafe.Pointer) (_res Mem, _errcode_ret error) {
@@ -2256,7 +2345,9 @@ func CreateImageWithProperties(context Context, properties []MemProperties, flag
 	res_1 := Mem(res)
 	return res_1, makeError(ErrorCode(errcode_ret_1))
 }
-// API version 1.0 and above.
+// Description: Increments the memory object reference count.
+//
+// Introduced in OpenCL version 1.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clRetainMemObject.html.
 func RetainMemObject(memobj Mem) (_err error) {
@@ -2264,7 +2355,9 @@ func RetainMemObject(memobj Mem) (_err error) {
 	res := C.clRetainMemObject(memobj_1)
 	return makeError(ErrorCode(res))
 }
-// API version 1.0 and above.
+// Description: Decrements the memory object reference count.
+//
+// Introduced in OpenCL version 1.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clReleaseMemObject.html.
 func ReleaseMemObject(memobj Mem) (_err error) {
@@ -2272,7 +2365,9 @@ func ReleaseMemObject(memobj Mem) (_err error) {
 	res := C.clReleaseMemObject(memobj_1)
 	return makeError(ErrorCode(res))
 }
-// API version 1.0 and above.
+// Description: Get the list of image formats supported by an OpenCL implementation.
+//
+// Introduced in OpenCL version 1.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetSupportedImageFormats.html.
 func GetSupportedImageFormats(context Context, flags MemFlags, image_type MemObjectType) (_image_formats []ImageFormat, _err error) {
@@ -2295,7 +2390,9 @@ func GetSupportedImageFormats(context Context, flags MemFlags, image_type MemObj
 //	- string (e.g. char[]): Go string or []byte (either is accepted)
 //	- array (e.g. size_t[]): slice of equivalent Go type (e.g. []uint64)
 //
-// API version 1.0 and above.
+// Description: Get information that is common to all memory objects (buffer and image objects).
+//
+// Introduced in OpenCL version 1.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetMemObjectInfo.html.
 func GetMemObjectInfo[T any](memobj Mem, param_name MemInfo) (_value T, _err error) {
@@ -2341,7 +2438,9 @@ func GetMemObjectInfo[T any](memobj Mem, param_name MemInfo) (_value T, _err err
 //	- string (e.g. char[]): Go string or []byte (either is accepted)
 //	- array (e.g. size_t[]): slice of equivalent Go type (e.g. []uint64)
 //
-// API version 1.0 and above.
+// Description: Get information specific to an image object created with clCreateImage.
+//
+// Introduced in OpenCL version 1.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetImageInfo.html.
 func GetImageInfo[T any](image Mem, param_name ImageInfo) (_value T, _err error) {
@@ -2387,7 +2486,9 @@ func GetImageInfo[T any](image Mem, param_name ImageInfo) (_value T, _err error)
 //	- string (e.g. char[]): Go string or []byte (either is accepted)
 //	- array (e.g. size_t[]): slice of equivalent Go type (e.g. []uint64)
 //
-// API version 2.0 and above.
+// Description: Get information specific to a pipe object created with clCreatePipe.
+//
+// Introduced in OpenCL version 2.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetPipeInfo.html.
 func GetPipeInfo[T any](pipe Mem, param_name PipeInfo) (_value T, _err error) {
@@ -2436,7 +2537,9 @@ func go_cl_callback_clSetMemObjectDestructorCallback(memobj C.cl_mem, user_data 
 //
 // The callback user_data parameter is intentionally left out; you should instead provide an anonymous callback function that captures the variables you need.
 //
-// API version 1.1 and above.
+// Description: Registers a destructor callback function with a memory object.
+//
+// Introduced in OpenCL version 1.1.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clSetMemObjectDestructorCallback.html.
 func SetMemObjectDestructorCallback(memobj Mem, pfn_notify func(memobj Mem)) (_err error) {
@@ -2451,7 +2554,9 @@ func SetMemObjectDestructorCallback(memobj Mem, pfn_notify func(memobj Mem)) (_e
 	res := C.clSetMemObjectDestructorCallback(memobj_1, callback, callback_uid)
 	return makeError(ErrorCode(res))
 }
-// API version 2.0 and above.
+// Description: Allocates a shared virtual memory (SVM) buffer that can be shared by the host and all devices in an OpenCL context that support shared virtual memory.
+//
+// Introduced in OpenCL version 2.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clSVMAlloc.html.
 func SVMAlloc(context Context, flags SvmMemFlags, size uint64, alignment uint32) (_res unsafe.Pointer) {
@@ -2463,7 +2568,9 @@ func SVMAlloc(context Context, flags SvmMemFlags, size uint64, alignment uint32)
 	res_1 := (unsafe.Pointer)(res)
 	return res_1
 }
-// API version 2.0 and above.
+// Description: Frees a shared virtual memory buffer allocated using clSVMAlloc.
+//
+// Introduced in OpenCL version 2.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clSVMFree.html.
 func SVMFree(context Context, svm_pointer unsafe.Pointer) {
@@ -2471,7 +2578,9 @@ func SVMFree(context Context, svm_pointer unsafe.Pointer) {
 	svm_pointer_1 := svm_pointer
 	C.clSVMFree(context_1, svm_pointer_1)
 }
-// API version 2.0 and above.
+// Description: Creates a sampler object.
+//
+// Introduced in OpenCL version 2.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateSamplerWithProperties.html.
 func CreateSamplerWithProperties(context Context, sampler_properties []SamplerProperties) (_res Sampler, _errcode_ret error) {
@@ -2484,7 +2593,9 @@ func CreateSamplerWithProperties(context Context, sampler_properties []SamplerPr
 	res_1 := Sampler(res)
 	return res_1, makeError(ErrorCode(errcode_ret_1))
 }
-// API version 1.0 and above.
+// Description: Increments the sampler reference count.
+//
+// Introduced in OpenCL version 1.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clRetainSampler.html.
 func RetainSampler(sampler Sampler) (_err error) {
@@ -2492,7 +2603,9 @@ func RetainSampler(sampler Sampler) (_err error) {
 	res := C.clRetainSampler(sampler_1)
 	return makeError(ErrorCode(res))
 }
-// API version 1.0 and above.
+// Description: Decrements the sampler reference count.
+//
+// Introduced in OpenCL version 1.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clReleaseSampler.html.
 func ReleaseSampler(sampler Sampler) (_err error) {
@@ -2508,7 +2621,9 @@ func ReleaseSampler(sampler Sampler) (_err error) {
 //	- string (e.g. char[]): Go string or []byte (either is accepted)
 //	- array (e.g. size_t[]): slice of equivalent Go type (e.g. []uint64)
 //
-// API version 1.0 and above.
+// Description: Returns information about the sampler object.
+//
+// Introduced in OpenCL version 1.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetSamplerInfo.html.
 func GetSamplerInfo[T any](sampler Sampler, param_name SamplerInfo) (_value T, _err error) {
@@ -2546,7 +2661,9 @@ func GetSamplerInfo[T any](sampler Sampler, param_name SamplerInfo) (_value T, _
 	res := C.clGetSamplerInfo(sampler_1, C.cl_sampler_info(param_name), param_actual_size, param_ptr, &param_actual_size)
 	return maybeStripNullTermAndConvToString(param_value).Interface().(T), makeError(ErrorCode(res))
 }
-// API version 1.0 and above.
+// Description: Creates a program object for a context, and loads source code specified by text strings into the program object.
+//
+// Introduced in OpenCL version 1.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateProgramWithSource.html.
 func CreateProgramWithSource(context Context, strings []string) (_res Program, _errcode_ret error) {
@@ -2592,7 +2709,9 @@ func CreateProgramWithBinary(context Context, device_list []DeviceId, binaries [
 
 	return Program(res), makeError(ErrorCode(errcode_ret_1))
 }
-// API version 1.2 and above.
+// Description: Creates a program object for a context, and loads the information related to the built-in kernels into a program object.
+//
+// Introduced in OpenCL version 1.2.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateProgramWithBuiltInKernels.html.
 func CreateProgramWithBuiltInKernels(context Context, device_list []DeviceId, kernel_names string) (_res Program, _errcode_ret error) {
@@ -2608,7 +2727,9 @@ func CreateProgramWithBuiltInKernels(context Context, device_list []DeviceId, ke
 	res_1 := Program(res)
 	return res_1, makeError(ErrorCode(errcode_ret_1))
 }
-// API version 2.1 and above.
+// Description: Creates a program object for a context, and loads the IL into the program object.
+//
+// Introduced in OpenCL version 2.1.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateProgramWithIL.html.
 func CreateProgramWithIL(context Context, il unsafe.Pointer, length uint64) (_res Program, _errcode_ret error) {
@@ -2620,7 +2741,9 @@ func CreateProgramWithIL(context Context, il unsafe.Pointer, length uint64) (_re
 	res_1 := Program(res)
 	return res_1, makeError(ErrorCode(errcode_ret_1))
 }
-// API version 1.0 and above.
+// Description: Increments the program reference count.
+//
+// Introduced in OpenCL version 1.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clRetainProgram.html.
 func RetainProgram(program Program) (_err error) {
@@ -2628,7 +2751,9 @@ func RetainProgram(program Program) (_err error) {
 	res := C.clRetainProgram(program_1)
 	return makeError(ErrorCode(res))
 }
-// API version 1.0 and above.
+// Description: Decrements the program reference count.
+//
+// Introduced in OpenCL version 1.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clReleaseProgram.html.
 func ReleaseProgram(program Program) (_err error) {
@@ -2647,7 +2772,9 @@ func go_cl_callback_clBuildProgram(program C.cl_program, user_data *C.void) {
 //
 // The callback user_data parameter is intentionally left out; you should instead provide an anonymous callback function that captures the variables you need.
 //
-// API version 1.0 and above.
+// Description: Builds (compiles and links) a program executable from the program source or binary.
+//
+// Introduced in OpenCL version 1.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clBuildProgram.html.
 func BuildProgram(program Program, device_list []DeviceId, options string, pfn_notify func(program Program)) (_err error) {
@@ -2724,7 +2851,9 @@ func go_cl_callback_clLinkProgram(program C.cl_program, user_data *C.void) {
 //
 // The callback user_data parameter is intentionally left out; you should instead provide an anonymous callback function that captures the variables you need.
 //
-// API version 1.2 and above.
+// Description: Links a set of compiled program objects and libraries for all the devices or a specific device(s) in the OpenCL context and creates a library or executable.
+//
+// Introduced in OpenCL version 1.2.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clLinkProgram.html.
 func LinkProgram(context Context, device_list []DeviceId, options string, input_programs []Program, pfn_notify func(program Program)) (_res Program, _errcode_ret error) {
@@ -2762,9 +2891,11 @@ func go_cl_callback_clSetProgramReleaseCallback(program C.cl_program, user_data 
 //
 // The callback user_data parameter is intentionally left out; you should instead provide an anonymous callback function that captures the variables you need.
 //
-// API version 2.2 and above.
+// Description: Registers a destructor callback function with a program object.
 //
-// Deprecated: This function is deprecated in the current OpenCL version (see Khronos docs link below for details).
+// Introduced in OpenCL version 2.2.
+//
+// Deprecated: Deprecated by OpenCL version 3.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clSetProgramReleaseCallback.html.
 func SetProgramReleaseCallback(program Program, pfn_notify func(program Program)) (_err error) {
@@ -2779,7 +2910,9 @@ func SetProgramReleaseCallback(program Program, pfn_notify func(program Program)
 	res := C.clSetProgramReleaseCallback(program_1, callback, callback_uid)
 	return makeError(ErrorCode(res))
 }
-// API version 2.2 and above.
+// Description: 
+//
+// Introduced in OpenCL version 2.2.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clSetProgramSpecializationConstant.html.
 func SetProgramSpecializationConstant(program Program, spec_id uint32, spec_size uint64, spec_value unsafe.Pointer) (_err error) {
@@ -2790,7 +2923,9 @@ func SetProgramSpecializationConstant(program Program, spec_id uint32, spec_size
 	res := C.clSetProgramSpecializationConstant(program_1, spec_id_1, spec_size_1, spec_value_1)
 	return makeError(ErrorCode(res))
 }
-// API version 1.2 and above.
+// Description: Allows the implementation to release the resources allocated by the OpenCL compiler for a platform.
+//
+// Introduced in OpenCL version 1.2.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clUnloadPlatformCompiler.html.
 func UnloadPlatformCompiler(platform PlatformId) (_err error) {
@@ -2806,7 +2941,9 @@ func UnloadPlatformCompiler(platform PlatformId) (_err error) {
 //	- string (e.g. char[]): Go string or []byte (either is accepted)
 //	- array (e.g. size_t[]): slice of equivalent Go type (e.g. []uint64)
 //
-// API version 1.0 and above.
+// Description: Returns information about the program object.
+//
+// Introduced in OpenCL version 1.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetProgramInfo.html.
 func GetProgramInfo[T any](program Program, param_name ProgramInfo) (_value T, _err error) {
@@ -2852,7 +2989,9 @@ func GetProgramInfo[T any](program Program, param_name ProgramInfo) (_value T, _
 //	- string (e.g. char[]): Go string or []byte (either is accepted)
 //	- array (e.g. size_t[]): slice of equivalent Go type (e.g. []uint64)
 //
-// API version 1.0 and above.
+// Description: Returns build information for each device in the program object.
+//
+// Introduced in OpenCL version 1.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetProgramBuildInfo.html.
 func GetProgramBuildInfo[T any](program Program, device DeviceId, param_name ProgramBuildInfo) (_value T, _err error) {
@@ -2891,7 +3030,9 @@ func GetProgramBuildInfo[T any](program Program, device DeviceId, param_name Pro
 	res := C.clGetProgramBuildInfo(program_1, device_1, C.cl_program_build_info(param_name), param_actual_size, param_ptr, &param_actual_size)
 	return maybeStripNullTermAndConvToString(param_value).Interface().(T), makeError(ErrorCode(res))
 }
-// API version 1.0 and above.
+// Description: Creates a kernel object.
+//
+// Introduced in OpenCL version 1.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateKernel.html.
 func CreateKernel(program Program, kernel_name string) (_res Kernel, _errcode_ret error) {
@@ -2903,7 +3044,9 @@ func CreateKernel(program Program, kernel_name string) (_res Kernel, _errcode_re
 	res_1 := Kernel(res)
 	return res_1, makeError(ErrorCode(errcode_ret_1))
 }
-// API version 1.0 and above.
+// Description: Creates kernel objects for all kernel functions in a program object.
+//
+// Introduced in OpenCL version 1.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateKernelsInProgram.html.
 func CreateKernelsInProgram(program Program) (_kernels []Kernel, _err error) {
@@ -2916,7 +3059,9 @@ func CreateKernelsInProgram(program Program) (_kernels []Kernel, _err error) {
 	res := C.clCreateKernelsInProgram(program_1, C.cl_uint(num_kernels), (*C.cl_kernel)(kernels), nil)
 	return kernels_1, makeError(ErrorCode(res))
 }
-// API version 2.1 and above.
+// Description: Make a shallow copy of the kernel object.
+//
+// Introduced in OpenCL version 2.1.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCloneKernel.html.
 func CloneKernel(source_kernel Kernel) (_res Kernel, _errcode_ret error) {
@@ -2926,7 +3071,9 @@ func CloneKernel(source_kernel Kernel) (_res Kernel, _errcode_ret error) {
 	res_1 := Kernel(res)
 	return res_1, makeError(ErrorCode(errcode_ret_1))
 }
-// API version 1.0 and above.
+// Description: Increments the kernel object reference count.
+//
+// Introduced in OpenCL version 1.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clRetainKernel.html.
 func RetainKernel(kernel Kernel) (_err error) {
@@ -2934,7 +3081,9 @@ func RetainKernel(kernel Kernel) (_err error) {
 	res := C.clRetainKernel(kernel_1)
 	return makeError(ErrorCode(res))
 }
-// API version 1.0 and above.
+// Description: Decrements the kernel reference count.
+//
+// Introduced in OpenCL version 1.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clReleaseKernel.html.
 func ReleaseKernel(kernel Kernel) (_err error) {
@@ -2942,7 +3091,9 @@ func ReleaseKernel(kernel Kernel) (_err error) {
 	res := C.clReleaseKernel(kernel_1)
 	return makeError(ErrorCode(res))
 }
-// API version 1.0 and above.
+// Description: Set the argument value for a specific argument of a kernel.
+//
+// Introduced in OpenCL version 1.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clSetKernelArg.html.
 func SetKernelArg(kernel Kernel, arg_index uint32, arg_size uint64, arg_value unsafe.Pointer) (_err error) {
@@ -2953,7 +3104,9 @@ func SetKernelArg(kernel Kernel, arg_index uint32, arg_size uint64, arg_value un
 	res := C.clSetKernelArg(kernel_1, arg_index_1, arg_size_1, arg_value_1)
 	return makeError(ErrorCode(res))
 }
-// API version 2.0 and above.
+// Description: Set a SVM pointer as the argument value for a specific argument of a kernel.
+//
+// Introduced in OpenCL version 2.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clSetKernelArgSVMPointer.html.
 func SetKernelArgSVMPointer(kernel Kernel, arg_index uint32, arg_value unsafe.Pointer) (_err error) {
@@ -2963,7 +3116,9 @@ func SetKernelArgSVMPointer(kernel Kernel, arg_index uint32, arg_value unsafe.Po
 	res := C.clSetKernelArgSVMPointer(kernel_1, arg_index_1, arg_value_1)
 	return makeError(ErrorCode(res))
 }
-// API version 2.0 and above.
+// Description: Set additional execution information for a kernel.
+//
+// Introduced in OpenCL version 2.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clSetKernelExecInfo.html.
 func SetKernelExecInfo(kernel Kernel, param_name KernelExecInfo, param_value_size uint64, param_value unsafe.Pointer) (_err error) {
@@ -2982,7 +3137,9 @@ func SetKernelExecInfo(kernel Kernel, param_name KernelExecInfo, param_value_siz
 //	- string (e.g. char[]): Go string or []byte (either is accepted)
 //	- array (e.g. size_t[]): slice of equivalent Go type (e.g. []uint64)
 //
-// API version 1.0 and above.
+// Description: Returns information about the kernel object.
+//
+// Introduced in OpenCL version 1.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetKernelInfo.html.
 func GetKernelInfo[T any](kernel Kernel, param_name KernelInfo) (_value T, _err error) {
@@ -3028,7 +3185,9 @@ func GetKernelInfo[T any](kernel Kernel, param_name KernelInfo) (_value T, _err 
 //	- string (e.g. char[]): Go string or []byte (either is accepted)
 //	- array (e.g. size_t[]): slice of equivalent Go type (e.g. []uint64)
 //
-// API version 1.2 and above.
+// Description: Returns information about the arguments of a kernel.
+//
+// Introduced in OpenCL version 1.2.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetKernelArgInfo.html.
 func GetKernelArgInfo[T any](kernel Kernel, arg_indx uint32, param_name KernelArgInfo) (_value T, _err error) {
@@ -3075,7 +3234,9 @@ func GetKernelArgInfo[T any](kernel Kernel, arg_indx uint32, param_name KernelAr
 //	- string (e.g. char[]): Go string or []byte (either is accepted)
 //	- array (e.g. size_t[]): slice of equivalent Go type (e.g. []uint64)
 //
-// API version 1.0 and above.
+// Description: Returns information about the kernel object that may be specific to a device.
+//
+// Introduced in OpenCL version 1.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetKernelWorkGroupInfo.html.
 func GetKernelWorkGroupInfo[T any](kernel Kernel, device DeviceId, param_name KernelWorkGroupInfo) (_value T, _err error) {
@@ -3122,7 +3283,9 @@ func GetKernelWorkGroupInfo[T any](kernel Kernel, device DeviceId, param_name Ke
 //	- string (e.g. char[]): Go string or []byte (either is accepted)
 //	- array (e.g. size_t[]): slice of equivalent Go type (e.g. []uint64)
 //
-// API version 2.1 and above.
+// Description: Returns information about the kernel object.
+//
+// Introduced in OpenCL version 2.1.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetKernelSubGroupInfo.html.
 func GetKernelSubGroupInfo[T any](kernel Kernel, device DeviceId, param_name KernelSubGroupInfo, input_value_size uint64, input_value unsafe.Pointer) (_value T, _err error) {
@@ -3163,7 +3326,9 @@ func GetKernelSubGroupInfo[T any](kernel Kernel, device DeviceId, param_name Ker
 	res := C.clGetKernelSubGroupInfo(kernel_1, device_1, C.cl_kernel_sub_group_info(param_name), input_value_size_1, input_value_1, param_actual_size, param_ptr, &param_actual_size)
 	return maybeStripNullTermAndConvToString(param_value).Interface().(T), makeError(ErrorCode(res))
 }
-// API version 1.0 and above.
+// Description: Waits on the host thread for commands identified by event objects to complete.
+//
+// Introduced in OpenCL version 1.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clWaitForEvents.html.
 func WaitForEvents(event_list []Event) (_err error) {
@@ -3182,7 +3347,9 @@ func WaitForEvents(event_list []Event) (_err error) {
 //	- string (e.g. char[]): Go string or []byte (either is accepted)
 //	- array (e.g. size_t[]): slice of equivalent Go type (e.g. []uint64)
 //
-// API version 1.0 and above.
+// Description: Returns information about the event object.
+//
+// Introduced in OpenCL version 1.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetEventInfo.html.
 func GetEventInfo[T any](event Event, param_name EventInfo) (_value T, _err error) {
@@ -3220,7 +3387,9 @@ func GetEventInfo[T any](event Event, param_name EventInfo) (_value T, _err erro
 	res := C.clGetEventInfo(event_1, C.cl_event_info(param_name), param_actual_size, param_ptr, &param_actual_size)
 	return maybeStripNullTermAndConvToString(param_value).Interface().(T), makeError(ErrorCode(res))
 }
-// API version 1.1 and above.
+// Description: Creates a user event object.
+//
+// Introduced in OpenCL version 1.1.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateUserEvent.html.
 func CreateUserEvent(context Context) (_res Event, _errcode_ret error) {
@@ -3230,7 +3399,9 @@ func CreateUserEvent(context Context) (_res Event, _errcode_ret error) {
 	res_1 := Event(res)
 	return res_1, makeError(ErrorCode(errcode_ret_1))
 }
-// API version 1.0 and above.
+// Description: Increments the event reference count.
+//
+// Introduced in OpenCL version 1.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clRetainEvent.html.
 func RetainEvent(event Event) (_err error) {
@@ -3238,7 +3409,9 @@ func RetainEvent(event Event) (_err error) {
 	res := C.clRetainEvent(event_1)
 	return makeError(ErrorCode(res))
 }
-// API version 1.0 and above.
+// Description: Decrements the event reference count.
+//
+// Introduced in OpenCL version 1.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clReleaseEvent.html.
 func ReleaseEvent(event Event) (_err error) {
@@ -3246,7 +3419,9 @@ func ReleaseEvent(event Event) (_err error) {
 	res := C.clReleaseEvent(event_1)
 	return makeError(ErrorCode(res))
 }
-// API version 1.1 and above.
+// Description: Sets the execution status of a user event object.
+//
+// Introduced in OpenCL version 1.1.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clSetUserEventStatus.html.
 func SetUserEventStatus(event Event, execution_status int32) (_err error) {
@@ -3266,7 +3441,9 @@ func go_cl_callback_clSetEventCallback(event C.cl_event, event_command_status C.
 //
 // The callback user_data parameter is intentionally left out; you should instead provide an anonymous callback function that captures the variables you need.
 //
-// API version 1.1 and above.
+// Description: Registers a user callback function for a specific command execution status.
+//
+// Introduced in OpenCL version 1.1.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clSetEventCallback.html.
 func SetEventCallback(event Event, command_exec_callback_type int32, pfn_notify func(event Event, event_command_status int32)) (_callback_unregister func(), _err error) {
@@ -3292,7 +3469,9 @@ func SetEventCallback(event Event, command_exec_callback_type int32, pfn_notify 
 //	- string (e.g. char[]): Go string or []byte (either is accepted)
 //	- array (e.g. size_t[]): slice of equivalent Go type (e.g. []uint64)
 //
-// API version 1.0 and above.
+// Description: Returns profiling information for the command associated with event if profiling is enabled.
+//
+// Introduced in OpenCL version 1.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetEventProfilingInfo.html.
 func GetEventProfilingInfo[T any](event Event, param_name ProfilingInfo) (_value T, _err error) {
@@ -3330,7 +3509,9 @@ func GetEventProfilingInfo[T any](event Event, param_name ProfilingInfo) (_value
 	res := C.clGetEventProfilingInfo(event_1, C.cl_profiling_info(param_name), param_actual_size, param_ptr, &param_actual_size)
 	return maybeStripNullTermAndConvToString(param_value).Interface().(T), makeError(ErrorCode(res))
 }
-// API version 1.0 and above.
+// Description: Issues all previously queued OpenCL commands in a command-queue to the device associated with the command-queue.
+//
+// Introduced in OpenCL version 1.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clFlush.html.
 func Flush(command_queue CommandQueue) (_err error) {
@@ -3338,7 +3519,9 @@ func Flush(command_queue CommandQueue) (_err error) {
 	res := C.clFlush(command_queue_1)
 	return makeError(ErrorCode(res))
 }
-// API version 1.0 and above.
+// Description: Blocks until all previously queued OpenCL commands in a command-queue are issued to the associated device and have completed.
+//
+// Introduced in OpenCL version 1.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clFinish.html.
 func Finish(command_queue CommandQueue) (_err error) {
@@ -3346,7 +3529,9 @@ func Finish(command_queue CommandQueue) (_err error) {
 	res := C.clFinish(command_queue_1)
 	return makeError(ErrorCode(res))
 }
-// API version 1.0 and above.
+// Description: Enqueue commands to read from a buffer object to host memory.
+//
+// Introduced in OpenCL version 1.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueReadBuffer.html.
 func EnqueueReadBuffer(command_queue CommandQueue, buffer Mem, blocking_read bool, offset uint64, size uint64, ptr unsafe.Pointer, event_wait_list []Event, event *Event) (_err error) {
@@ -3364,7 +3549,9 @@ func EnqueueReadBuffer(command_queue CommandQueue, buffer Mem, blocking_read boo
 	res := C.clEnqueueReadBuffer(command_queue_1, buffer_1, blocking_read_1, offset_1, size_1, ptr_1, num_events_in_wait_list_2, event_wait_list_2, event_1)
 	return makeError(ErrorCode(res))
 }
-// API version 1.1 and above.
+// Description: Enqueue command to read from a 2D or 3D rectangular region from a buffer object to host memory.
+//
+// Introduced in OpenCL version 1.1.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueReadBufferRect.html.
 func EnqueueReadBufferRect(command_queue CommandQueue, buffer Mem, blocking_read bool, buffer_origin *uint64, host_origin *uint64, region *uint64, buffer_row_pitch uint64, buffer_slice_pitch uint64, host_row_pitch uint64, host_slice_pitch uint64, ptr unsafe.Pointer, event_wait_list []Event, event *Event) (_err error) {
@@ -3387,7 +3574,7 @@ func EnqueueReadBufferRect(command_queue CommandQueue, buffer Mem, blocking_read
 	res := C.clEnqueueReadBufferRect(command_queue_1, buffer_1, blocking_read_1, buffer_origin_1, host_origin_1, region_1, buffer_row_pitch_1, buffer_slice_pitch_1, host_row_pitch_1, host_slice_pitch_1, ptr_1, num_events_in_wait_list_2, event_wait_list_2, event_1)
 	return makeError(ErrorCode(res))
 }
-// API version 1.0 and above.
+// Introduced in OpenCL version 1.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueWriteBuffer.html.
 func EnqueueWriteBuffer(command_queue CommandQueue, buffer Mem, blocking_write bool, offset uint64, size uint64, ptr unsafe.Pointer, event_wait_list []Event, event *Event) (_err error) {
@@ -3405,7 +3592,7 @@ func EnqueueWriteBuffer(command_queue CommandQueue, buffer Mem, blocking_write b
 	res := C.clEnqueueWriteBuffer(command_queue_1, buffer_1, blocking_write_1, offset_1, size_1, ptr_1, num_events_in_wait_list_2, event_wait_list_2, event_1)
 	return makeError(ErrorCode(res))
 }
-// API version 1.1 and above.
+// Introduced in OpenCL version 1.1.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueWriteBufferRect.html.
 func EnqueueWriteBufferRect(command_queue CommandQueue, buffer Mem, blocking_write bool, buffer_origin *uint64, host_origin *uint64, region *uint64, buffer_row_pitch uint64, buffer_slice_pitch uint64, host_row_pitch uint64, host_slice_pitch uint64, ptr unsafe.Pointer, event_wait_list []Event, event *Event) (_err error) {
@@ -3428,7 +3615,9 @@ func EnqueueWriteBufferRect(command_queue CommandQueue, buffer Mem, blocking_wri
 	res := C.clEnqueueWriteBufferRect(command_queue_1, buffer_1, blocking_write_1, buffer_origin_1, host_origin_1, region_1, buffer_row_pitch_1, buffer_slice_pitch_1, host_row_pitch_1, host_slice_pitch_1, ptr_1, num_events_in_wait_list_2, event_wait_list_2, event_1)
 	return makeError(ErrorCode(res))
 }
-// API version 1.2 and above.
+// Description: Enqueues a command to fill a buffer object with a pattern of a given pattern size.
+//
+// Introduced in OpenCL version 1.2.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueFillBuffer.html.
 func EnqueueFillBuffer(command_queue CommandQueue, buffer Mem, pattern unsafe.Pointer, pattern_size uint64, offset uint64, size uint64, event_wait_list []Event, event *Event) (_err error) {
@@ -3446,7 +3635,9 @@ func EnqueueFillBuffer(command_queue CommandQueue, buffer Mem, pattern unsafe.Po
 	res := C.clEnqueueFillBuffer(command_queue_1, buffer_1, pattern_1, pattern_size_1, offset_1, size_1, num_events_in_wait_list_2, event_wait_list_2, event_1)
 	return makeError(ErrorCode(res))
 }
-// API version 1.0 and above.
+// Description: Enqueues a command to copy from one buffer object to another.
+//
+// Introduced in OpenCL version 1.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueCopyBuffer.html.
 func EnqueueCopyBuffer(command_queue CommandQueue, src_buffer Mem, dst_buffer Mem, src_offset uint64, dst_offset uint64, size uint64, event_wait_list []Event, event *Event) (_err error) {
@@ -3464,7 +3655,9 @@ func EnqueueCopyBuffer(command_queue CommandQueue, src_buffer Mem, dst_buffer Me
 	res := C.clEnqueueCopyBuffer(command_queue_1, src_buffer_1, dst_buffer_1, src_offset_1, dst_offset_1, size_1, num_events_in_wait_list_2, event_wait_list_2, event_1)
 	return makeError(ErrorCode(res))
 }
-// API version 1.1 and above.
+// Description: Enqueues a command to copy a 2D or 3D rectangular region from a buffer object to another buffer object.
+//
+// Introduced in OpenCL version 1.1.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueCopyBufferRect.html.
 func EnqueueCopyBufferRect(command_queue CommandQueue, src_buffer Mem, dst_buffer Mem, src_origin *uint64, dst_origin *uint64, region *uint64, src_row_pitch uint64, src_slice_pitch uint64, dst_row_pitch uint64, dst_slice_pitch uint64, event_wait_list []Event, event *Event) (_err error) {
@@ -3486,7 +3679,9 @@ func EnqueueCopyBufferRect(command_queue CommandQueue, src_buffer Mem, dst_buffe
 	res := C.clEnqueueCopyBufferRect(command_queue_1, src_buffer_1, dst_buffer_1, src_origin_1, dst_origin_1, region_1, src_row_pitch_1, src_slice_pitch_1, dst_row_pitch_1, dst_slice_pitch_1, num_events_in_wait_list_2, event_wait_list_2, event_1)
 	return makeError(ErrorCode(res))
 }
-// API version 1.0 and above.
+// Description: Enqueue commands to read from an image or image array object to host memory.
+//
+// Introduced in OpenCL version 1.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueReadImage.html.
 func EnqueueReadImage(command_queue CommandQueue, image Mem, blocking_read bool, origin *uint64, region *uint64, row_pitch uint64, slice_pitch uint64, ptr unsafe.Pointer, event_wait_list []Event, event *Event) (_err error) {
@@ -3506,7 +3701,7 @@ func EnqueueReadImage(command_queue CommandQueue, image Mem, blocking_read bool,
 	res := C.clEnqueueReadImage(command_queue_1, image_1, blocking_read_1, origin_1, region_1, row_pitch_1, slice_pitch_1, ptr_1, num_events_in_wait_list_2, event_wait_list_2, event_1)
 	return makeError(ErrorCode(res))
 }
-// API version 1.0 and above.
+// Introduced in OpenCL version 1.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueWriteImage.html.
 func EnqueueWriteImage(command_queue CommandQueue, image Mem, blocking_write bool, origin *uint64, region *uint64, input_row_pitch uint64, input_slice_pitch uint64, ptr unsafe.Pointer, event_wait_list []Event, event *Event) (_err error) {
@@ -3526,7 +3721,9 @@ func EnqueueWriteImage(command_queue CommandQueue, image Mem, blocking_write boo
 	res := C.clEnqueueWriteImage(command_queue_1, image_1, blocking_write_1, origin_1, region_1, input_row_pitch_1, input_slice_pitch_1, ptr_1, num_events_in_wait_list_2, event_wait_list_2, event_1)
 	return makeError(ErrorCode(res))
 }
-// API version 1.2 and above.
+// Description: Enqueues a command to fill an image object with a specified color.
+//
+// Introduced in OpenCL version 1.2.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueFillImage.html.
 func EnqueueFillImage(command_queue CommandQueue, image Mem, fill_color unsafe.Pointer, origin *uint64, region *uint64, event_wait_list []Event, event *Event) (_err error) {
@@ -3543,7 +3740,9 @@ func EnqueueFillImage(command_queue CommandQueue, image Mem, fill_color unsafe.P
 	res := C.clEnqueueFillImage(command_queue_1, image_1, fill_color_1, origin_1, region_1, num_events_in_wait_list_2, event_wait_list_2, event_1)
 	return makeError(ErrorCode(res))
 }
-// API version 1.0 and above.
+// Description: Enqueues a command to copy image objects.
+//
+// Introduced in OpenCL version 1.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueCopyImage.html.
 func EnqueueCopyImage(command_queue CommandQueue, src_image Mem, dst_image Mem, src_origin *uint64, dst_origin *uint64, region *uint64, event_wait_list []Event, event *Event) (_err error) {
@@ -3561,7 +3760,9 @@ func EnqueueCopyImage(command_queue CommandQueue, src_image Mem, dst_image Mem, 
 	res := C.clEnqueueCopyImage(command_queue_1, src_image_1, dst_image_1, src_origin_1, dst_origin_1, region_1, num_events_in_wait_list_2, event_wait_list_2, event_1)
 	return makeError(ErrorCode(res))
 }
-// API version 1.0 and above.
+// Description: Enqueues a command to copy an image object to a buffer object.
+//
+// Introduced in OpenCL version 1.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueCopyImageToBuffer.html.
 func EnqueueCopyImageToBuffer(command_queue CommandQueue, src_image Mem, dst_buffer Mem, src_origin *uint64, region *uint64, dst_offset uint64, event_wait_list []Event, event *Event) (_err error) {
@@ -3579,7 +3780,9 @@ func EnqueueCopyImageToBuffer(command_queue CommandQueue, src_image Mem, dst_buf
 	res := C.clEnqueueCopyImageToBuffer(command_queue_1, src_image_1, dst_buffer_1, src_origin_1, region_1, dst_offset_1, num_events_in_wait_list_2, event_wait_list_2, event_1)
 	return makeError(ErrorCode(res))
 }
-// API version 1.0 and above.
+// Description: Enqueues a command to copy a buffer object to an image object.
+//
+// Introduced in OpenCL version 1.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueCopyBufferToImage.html.
 func EnqueueCopyBufferToImage(command_queue CommandQueue, src_buffer Mem, dst_image Mem, src_offset uint64, dst_origin *uint64, region *uint64, event_wait_list []Event, event *Event) (_err error) {
@@ -3597,7 +3800,9 @@ func EnqueueCopyBufferToImage(command_queue CommandQueue, src_buffer Mem, dst_im
 	res := C.clEnqueueCopyBufferToImage(command_queue_1, src_buffer_1, dst_image_1, src_offset_1, dst_origin_1, region_1, num_events_in_wait_list_2, event_wait_list_2, event_1)
 	return makeError(ErrorCode(res))
 }
-// API version 1.0 and above.
+// Description: Enqueues a command to map a region of a buffer object into the host address space and returns a pointer to this mapped region.
+//
+// Introduced in OpenCL version 1.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueMapBuffer.html.
 func EnqueueMapBuffer(command_queue CommandQueue, buffer Mem, blocking_map bool, map_flags MapFlags, offset uint64, size uint64, event_wait_list []Event, event *Event) (_res unsafe.Pointer, _errcode_ret error) {
@@ -3617,7 +3822,9 @@ func EnqueueMapBuffer(command_queue CommandQueue, buffer Mem, blocking_map bool,
 	res_1 := (unsafe.Pointer)(res)
 	return res_1, makeError(ErrorCode(errcode_ret_1))
 }
-// API version 1.0 and above.
+// Description: Enqueues a command to map a region of an image object into the host address space and returns a pointer to this mapped region.
+//
+// Introduced in OpenCL version 1.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueMapImage.html.
 func EnqueueMapImage(command_queue CommandQueue, image Mem, blocking_map bool, map_flags MapFlags, origin *uint64, region *uint64, image_row_pitch *uint64, image_slice_pitch *uint64, event_wait_list []Event, event *Event) (_res unsafe.Pointer, _errcode_ret error) {
@@ -3639,7 +3846,9 @@ func EnqueueMapImage(command_queue CommandQueue, image Mem, blocking_map bool, m
 	res_1 := (unsafe.Pointer)(res)
 	return res_1, makeError(ErrorCode(errcode_ret_1))
 }
-// API version 1.0 and above.
+// Description: Enqueues a command to unmap a previously mapped region of a memory object.
+//
+// Introduced in OpenCL version 1.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueUnmapMemObject.html.
 func EnqueueUnmapMemObject(command_queue CommandQueue, memobj Mem, mapped_ptr unsafe.Pointer, event_wait_list []Event, event *Event) (_err error) {
@@ -3654,7 +3863,9 @@ func EnqueueUnmapMemObject(command_queue CommandQueue, memobj Mem, mapped_ptr un
 	res := C.clEnqueueUnmapMemObject(command_queue_1, memobj_1, mapped_ptr_1, num_events_in_wait_list_2, event_wait_list_2, event_1)
 	return makeError(ErrorCode(res))
 }
-// API version 1.2 and above.
+// Description: Enqueues a command to indicate which device a set of memory objects should be associated with.
+//
+// Introduced in OpenCL version 1.2.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueMigrateMemObjects.html.
 func EnqueueMigrateMemObjects(command_queue CommandQueue, mem_objects []Mem, flags MemMigrationFlags, event_wait_list []Event, event *Event) (_err error) {
@@ -3672,7 +3883,9 @@ func EnqueueMigrateMemObjects(command_queue CommandQueue, mem_objects []Mem, fla
 	res := C.clEnqueueMigrateMemObjects(command_queue_1, num_mem_objects_2, mem_objects_2, flags_1, num_events_in_wait_list_2, event_wait_list_2, event_1)
 	return makeError(ErrorCode(res))
 }
-// API version 1.0 and above.
+// Description: Enqueues a command to execute a kernel on a device.
+//
+// Introduced in OpenCL version 1.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueNDRangeKernel.html.
 func EnqueueNDRangeKernel(command_queue CommandQueue, kernel Kernel, work_dim uint32, global_work_offset []uint64, global_work_size []uint64, local_work_size []uint64, event_wait_list []Event, event *Event) (_err error) {
@@ -3696,7 +3909,9 @@ func EnqueueNDRangeKernel(command_queue CommandQueue, kernel Kernel, work_dim ui
 	res := C.clEnqueueNDRangeKernel(command_queue_1, kernel_1, work_dim_1, global_work_offset_2, global_work_size_2, local_work_size_2, num_events_in_wait_list_2, event_wait_list_2, event_1)
 	return makeError(ErrorCode(res))
 }
-// API version 1.2 and above.
+// Description: Enqueues a marker command which waits for either a list of events to complete, or all previously enqueued commands to complete.
+//
+// Introduced in OpenCL version 1.2.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueMarkerWithWaitList.html.
 func EnqueueMarkerWithWaitList(command_queue CommandQueue, event_wait_list []Event, event *Event) (_err error) {
@@ -3709,7 +3924,9 @@ func EnqueueMarkerWithWaitList(command_queue CommandQueue, event_wait_list []Eve
 	res := C.clEnqueueMarkerWithWaitList(command_queue_1, num_events_in_wait_list_2, event_wait_list_2, event_1)
 	return makeError(ErrorCode(res))
 }
-// API version 1.2 and above.
+// Description: A synchronization point that enqueues a barrier operation.
+//
+// Introduced in OpenCL version 1.2.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueBarrierWithWaitList.html.
 func EnqueueBarrierWithWaitList(command_queue CommandQueue, event_wait_list []Event, event *Event) (_err error) {
@@ -3734,7 +3951,9 @@ func go_cl_callback_clEnqueueSVMFree(queue C.cl_command_queue, num_svm_pointers 
 //
 // The callback user_data parameter is intentionally left out; you should instead provide an anonymous callback function that captures the variables you need.
 //
-// API version 2.0 and above.
+// Description: Enqueues a command to free shared virtual memory allocated using clSVMAlloc or a shared system memory pointer.
+//
+// Introduced in OpenCL version 2.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueSVMFree.html.
 func EnqueueSVMFree(command_queue CommandQueue, num_svm_pointers uint32, svm_pointers unsafe.Pointer, pfn_free_func func(queue CommandQueue, num_svm_pointers uint32, svm_pointers unsafe.Pointer), event_wait_list []Event, event *Event) (_callback_unregister func(), _err error) {
@@ -3758,7 +3977,9 @@ func EnqueueSVMFree(command_queue CommandQueue, num_svm_pointers uint32, svm_poi
 	res := C.clEnqueueSVMFree(command_queue_1, num_svm_pointers_1, svm_pointers_1, callback, callback_uid, num_events_in_wait_list_2, event_wait_list_2, event_1)
 	return callback_unregister, makeError(ErrorCode(res))
 }
-// API version 2.0 and above.
+// Description: Enqueues a command to do a memcpy operation.
+//
+// Introduced in OpenCL version 2.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueSVMMemcpy.html.
 func EnqueueSVMMemcpy(command_queue CommandQueue, blocking_copy bool, dst_ptr unsafe.Pointer, src_ptr unsafe.Pointer, size uint64, event_wait_list []Event, event *Event) (_err error) {
@@ -3775,7 +3996,9 @@ func EnqueueSVMMemcpy(command_queue CommandQueue, blocking_copy bool, dst_ptr un
 	res := C.clEnqueueSVMMemcpy(command_queue_1, blocking_copy_1, dst_ptr_1, src_ptr_1, size_1, num_events_in_wait_list_2, event_wait_list_2, event_1)
 	return makeError(ErrorCode(res))
 }
-// API version 2.0 and above.
+// Description: Enqueues a command to fill a region in memory with a pattern of a given pattern size.
+//
+// Introduced in OpenCL version 2.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueSVMMemFill.html.
 func EnqueueSVMMemFill(command_queue CommandQueue, svm_ptr unsafe.Pointer, pattern unsafe.Pointer, pattern_size uint64, size uint64, event_wait_list []Event, event *Event) (_err error) {
@@ -3792,7 +4015,9 @@ func EnqueueSVMMemFill(command_queue CommandQueue, svm_ptr unsafe.Pointer, patte
 	res := C.clEnqueueSVMMemFill(command_queue_1, svm_ptr_1, pattern_1, pattern_size_1, size_1, num_events_in_wait_list_2, event_wait_list_2, event_1)
 	return makeError(ErrorCode(res))
 }
-// API version 2.0 and above.
+// Description: Enqueues a command that will allow the host to update a region of a SVM buffer
+//
+// Introduced in OpenCL version 2.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueSVMMap.html.
 func EnqueueSVMMap(command_queue CommandQueue, blocking_map bool, flags MapFlags, svm_ptr unsafe.Pointer, size uint64, event_wait_list []Event, event *Event) (_err error) {
@@ -3809,7 +4034,9 @@ func EnqueueSVMMap(command_queue CommandQueue, blocking_map bool, flags MapFlags
 	res := C.clEnqueueSVMMap(command_queue_1, blocking_map_1, flags_1, svm_ptr_1, size_1, num_events_in_wait_list_2, event_wait_list_2, event_1)
 	return makeError(ErrorCode(res))
 }
-// API version 2.0 and above.
+// Description: Enqueues a command to indicate that the host has completed updating the region given by an SVM pointer and which was specified in a previous call to clEnqueueSVMMap.
+//
+// Introduced in OpenCL version 2.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueSVMUnmap.html.
 func EnqueueSVMUnmap(command_queue CommandQueue, svm_ptr unsafe.Pointer, event_wait_list []Event, event *Event) (_err error) {
@@ -3823,7 +4050,9 @@ func EnqueueSVMUnmap(command_queue CommandQueue, svm_ptr unsafe.Pointer, event_w
 	res := C.clEnqueueSVMUnmap(command_queue_1, svm_ptr_1, num_events_in_wait_list_2, event_wait_list_2, event_1)
 	return makeError(ErrorCode(res))
 }
-// API version 2.1 and above.
+// Description: Enqueues a command to indicate which device a set of ranges of SVM allocations should be associated with.
+//
+// Introduced in OpenCL version 2.1.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueSVMMigrateMem.html.
 func EnqueueSVMMigrateMem(command_queue CommandQueue, num_svm_pointers uint32, svm_pointers unsafe.Pointer, sizes *uint64, flags MemMigrationFlags, event_wait_list []Event, event *Event) (_err error) {
@@ -3869,7 +4098,7 @@ func GetKernelSuggestedLocalWorkSize(command_queue CommandQueue, kernel Kernel, 
 	)
 	return suggested_local_work_size, makeError(ErrorCode(res))
 }
-// API version 1.2 and above.
+// Introduced in OpenCL version 1.2.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetExtensionFunctionAddressForPlatform.html.
 func GetExtensionFunctionAddressForPlatform(platform PlatformId, func_name string) (_res unsafe.Pointer) {
@@ -3880,9 +4109,11 @@ func GetExtensionFunctionAddressForPlatform(platform PlatformId, func_name strin
 	res_1 := (unsafe.Pointer)(res)
 	return res_1
 }
-// API version 1.1 and above.
+// Description: Creates a 2D image.
 //
-// Deprecated: This function is deprecated in the current OpenCL version (see Khronos docs link below for details).
+// Introduced in OpenCL version 1.1.
+//
+// Deprecated: Deprecated by OpenCL version 1.2.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateImage2D.html.
 func CreateImage2D(context Context, flags MemFlags, image_format *ImageFormat, image_width uint64, image_height uint64, image_row_pitch uint64, host_ptr unsafe.Pointer) (_res Mem, _errcode_ret error) {
@@ -3898,9 +4129,11 @@ func CreateImage2D(context Context, flags MemFlags, image_format *ImageFormat, i
 	res_1 := Mem(res)
 	return res_1, makeError(ErrorCode(errcode_ret_1))
 }
-// API version 1.1 and above.
+// Description: Creates a 3D image.
 //
-// Deprecated: This function is deprecated in the current OpenCL version (see Khronos docs link below for details).
+// Introduced in OpenCL version 1.1.
+//
+// Deprecated: Deprecated by OpenCL version 1.2.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateImage3D.html.
 func CreateImage3D(context Context, flags MemFlags, image_format *ImageFormat, image_width uint64, image_height uint64, image_depth uint64, image_row_pitch uint64, image_slice_pitch uint64, host_ptr unsafe.Pointer) (_res Mem, _errcode_ret error) {
@@ -3918,9 +4151,11 @@ func CreateImage3D(context Context, flags MemFlags, image_format *ImageFormat, i
 	res_1 := Mem(res)
 	return res_1, makeError(ErrorCode(errcode_ret_1))
 }
-// API version 1.1 and above.
+// Description: Enqueues a marker command which waits for all previously enqueued commands to complete.
 //
-// Deprecated: This function is deprecated in the current OpenCL version (see Khronos docs link below for details).
+// Introduced in OpenCL version 1.1.
+//
+// Deprecated: Deprecated by OpenCL version 1.2.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueMarker.html.
 func EnqueueMarker(command_queue CommandQueue, event *Event) (_err error) {
@@ -3929,9 +4164,11 @@ func EnqueueMarker(command_queue CommandQueue, event *Event) (_err error) {
 	res := C.clEnqueueMarker(command_queue_1, event_1)
 	return makeError(ErrorCode(res))
 }
-// API version 1.1 and above.
+// Description: Enqueues a wait on a list of events to complete.
 //
-// Deprecated: This function is deprecated in the current OpenCL version (see Khronos docs link below for details).
+// Introduced in OpenCL version 1.1.
+//
+// Deprecated: Deprecated by OpenCL version 1.2.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueWaitForEvents.html.
 func EnqueueWaitForEvents(command_queue CommandQueue, event_list []Event) (_err error) {
@@ -3943,9 +4180,11 @@ func EnqueueWaitForEvents(command_queue CommandQueue, event_list []Event) (_err 
 	res := C.clEnqueueWaitForEvents(command_queue_1, num_events_2, event_list_2)
 	return makeError(ErrorCode(res))
 }
-// API version 1.1 and above.
+// Description: A synchronization point that enqueues a barrier operation.
 //
-// Deprecated: This function is deprecated in the current OpenCL version (see Khronos docs link below for details).
+// Introduced in OpenCL version 1.1.
+//
+// Deprecated: Deprecated by OpenCL version 1.2.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueBarrier.html.
 func EnqueueBarrier(command_queue CommandQueue) (_err error) {
@@ -3953,18 +4192,20 @@ func EnqueueBarrier(command_queue CommandQueue) (_err error) {
 	res := C.clEnqueueBarrier(command_queue_1)
 	return makeError(ErrorCode(res))
 }
-// API version 1.1 and above.
+// Description: Allows the implementation to release the resources allocated by the OpenCL compiler.
 //
-// Deprecated: This function is deprecated in the current OpenCL version (see Khronos docs link below for details).
+// Introduced in OpenCL version 1.1.
+//
+// Deprecated: Deprecated by OpenCL version 1.2.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clUnloadCompiler.html.
 func UnloadCompiler() (_err error) {
 	res := C.clUnloadCompiler()
 	return makeError(ErrorCode(res))
 }
-// API version 1.1 and above.
+// Introduced in OpenCL version 1.1.
 //
-// Deprecated: This function is deprecated in the current OpenCL version (see Khronos docs link below for details).
+// Deprecated: Deprecated by OpenCL version 1.2.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clGetExtensionFunctionAddress.html.
 func GetExtensionFunctionAddress(func_name string) (_res unsafe.Pointer) {
@@ -3974,9 +4215,11 @@ func GetExtensionFunctionAddress(func_name string) (_res unsafe.Pointer) {
 	res_1 := (unsafe.Pointer)(res)
 	return res_1
 }
-// API version 1.2 and above.
+// Description: Create a host command-queue on a specific device.
 //
-// Deprecated: This function is deprecated in the current OpenCL version (see Khronos docs link below for details).
+// Introduced in OpenCL version 1.2.
+//
+// Deprecated: Deprecated by OpenCL version 2.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateCommandQueue.html.
 func CreateCommandQueue(context Context, device DeviceId, properties CommandQueueProperties) (_res CommandQueue, _errcode_ret error) {
@@ -3988,9 +4231,11 @@ func CreateCommandQueue(context Context, device DeviceId, properties CommandQueu
 	res_1 := CommandQueue(res)
 	return res_1, makeError(ErrorCode(errcode_ret_1))
 }
-// API version 1.2 and above.
+// Description: Creates a sampler object.
 //
-// Deprecated: This function is deprecated in the current OpenCL version (see Khronos docs link below for details).
+// Introduced in OpenCL version 1.2.
+//
+// Deprecated: Deprecated by OpenCL version 2.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clCreateSampler.html.
 func CreateSampler(context Context, normalized_coords bool, addressing_mode AddressingMode, filter_mode FilterMode) (_res Sampler, _errcode_ret error) {
@@ -4003,9 +4248,11 @@ func CreateSampler(context Context, normalized_coords bool, addressing_mode Addr
 	res_1 := Sampler(res)
 	return res_1, makeError(ErrorCode(errcode_ret_1))
 }
-// API version 1.2 and above.
+// Description: Enqueues a command to execute a kernel, using a single work-item, on a device.
 //
-// Deprecated: This function is deprecated in the current OpenCL version (see Khronos docs link below for details).
+// Introduced in OpenCL version 1.2.
+//
+// Deprecated: Deprecated by OpenCL version 2.0.
 //
 // See https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/clEnqueueTask.html.
 func EnqueueTask(command_queue CommandQueue, kernel Kernel, event_wait_list []Event, event *Event) (_err error) {

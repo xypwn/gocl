@@ -23,9 +23,11 @@ See the [examples](examples) directory.
 - [helloworld.go](examples/helloworld/helloworld.go): Square an input array on the GPU and return it.
 
 ### License
-All files from the OpenCL Headers and OpenCL ICD Loader are licensed under the [Apache-2.0 License](https://www.apache.org/licenses/LICENSE-2.0) (each file also explicitly states such).
+All files from the OpenCL Headers and OpenCL ICD Loader, as well as `opencl-docs/cl.xml` are licensed under the [Apache-2.0 License](https://www.apache.org/licenses/LICENSE-2.0) (each file also explicitly states such).
 
-All other files are licensed under the [MIT License](https://opensource.org/license/mit).
+Other OpenCL documentation files (currently only `opencl-docs/opencl_runtime_layer.asciidoc`) are licensed under the [CC-BY-4.0 License](https://creativecommons.org/licenses/by/4.0/) (each file also explicitly states such).
+
+All other files that do not explicitly state any other license are licensed under the [MIT License](https://opensource.org/license/mit).
 
 ### Disclaimer
 This project is unofficial and bears no connection to OpenCL, Khronos Group or any associated entities.
